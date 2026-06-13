@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(idf.py fullclean *)",
+      "PowerShell(. \"C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.ps1\" 2>&1)",
+      "PowerShell(. \"C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.ps1\" 2>&1 | Out-Null; cd \"C:\\\\Users\\\\Administrator\\\\Documents\\\\DeskMediaDeviceV2\"; idf.py -p COM4 flash monitor 2>&1 | ForEach-Object { Write-Host $_; $_ } | Out-File -FilePath \"claudetransferv2\\\\monitor_log.txt\" -Encoding UTF8)",
+      "Bash(cmd /c \"C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.bat 2>nul && idf.py build 2>&1 | tail -20\")",
+      "Bash(idf.py --version)",
+      "Bash(esptool.py version *)",
+      "WebSearch",
+      "WebFetch(domain:docs.espressif.com)",
+      "WebFetch(domain:docs.waveshare.com)",
+      "WebFetch(domain:files.waveshare.com)",
+      "Bash(xargs grep -l \"watchdog\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('extra_esptool_args',{}\\), indent=2\\)\\)\")",
+      "WebFetch(domain:github.com)",
+      "Bash(\"C:/esp/v5.5.4/esp-idf/export.sh\")",
+      "Bash(gh api *)",
+      "Bash(gh release *)",
+      "PowerShell(try { $r = Invoke-RestMethod -Uri \"https://api.github.com/repos/hubris123/DeskMediaDeviceV2\" -TimeoutSec 15; \"private: $\\($r.private\\)\"; \"default branch: $\\($r.default_branch\\)\" } catch { \"API response: $\\($_.Exception.Response.StatusCode.value__\\) $\\($_.Exception.Message\\)\" })",
+      "Bash(python -)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'feat: OTA firmware updates from GitHub releases *)",
+      "Bash(git push *)",
+      "PowerShell(Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match 'COM\\\\d' } | Select-Object Name, DeviceID)",
+      "PowerShell(Get-ChildItem C:\\\\Espressif\\\\frameworks -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem \"$env:USERPROFILE\\\\esp\" -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem C:\\\\esp -ErrorAction SilentlyContinue | Select-Object Name)",
+      "PowerShell(Copy-Item -Recurse \"C:\\\\Users\\\\Administrator\\\\Claude\\\\Projects\\\\voicechanger\\\\docs\\\\ESP32-S3-Touch-LCD-1.47-Demo\\\\ESP-IDF\\\\03_lvgl_example\" \"C:\\\\Users\\\\Administrator\\\\Claude\\\\Projects\\\\voicechanger\\\\firmware\")"
+    ]
+  }
+}
