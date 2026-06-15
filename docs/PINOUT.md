@@ -3,6 +3,23 @@
 Board: Waveshare ESP32-S3-Touch-LCD-1.47 · Power: USB-C only
 Jacks: RLECS 3.5 mm 4-pole (TRRS) panel-mount, gold-plated
 
+> **HARDWARE DIRECTION (decided 2026-06-12): moving to premade modules on a custom
+> carrier PCB.** Mic = **MAX4466** (manual gain) into ADC GPIO4. Output = **PCM5102A
+> I2S DAC** (line level) — replaces the sigma-delta path; firmware output must be
+> rewritten to I2S. Custom PCB stacks behind the Waveshare board via the P1 header,
+> jacks edge-mounted. Design both a module-carrier (Option A, prototype) and an
+> integrated-chip board (Option B, production). The discrete-passive wiring below is
+> the LEGACY sigma-delta path — kept as fallback only.
+>
+> **New module wiring:**
+> - MAX4466: VCC→3V3 (P1 pin 8), GND→GND (pin 3/4/6), OUT→GPIO4 (P1 pin 17)
+> - PCM5102A I2S: VIN→3V3 or 5V, GND→GND, BCK→GPIO5 (pin 19), LRCK→GPIO6 (pin 21),
+>   DIN→GPIO7 (pin 22), SCK→GND (use internal PLL). Module L/R out → output jack tip,
+>   GND → sleeve. (3.5mm jack wiring unchanged: Tip+R1+R2=signal, Sleeve=GND.)
+
+---
+## LEGACY sigma-delta discrete wiring (fallback)
+
 ## Where to solder on the board — P1 header (verified from Waveshare schematic)
 
 All connections go to the 22-pin P1 header. Relevant pins:
