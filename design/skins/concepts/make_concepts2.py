@@ -193,8 +193,8 @@ def small_temp(sc, x, y, text, p, anchor="mm", size=13, font=None):
 
 # ---------------- the 15 concepts ----------------
 def c22(sc, p, t):          # Snow Patrol: big gauge hero
-    big_gauge(sc, 184, 188, 112, p, 64, plate="88")
-    mc.batt_h(sc, 72, 296, 228, h=4)
+    big_gauge(sc, 184, 176, 112, p, 64, plate="88")
+    mc.batt_h(sc, 100, 268, 212, h=4)
     mc.lamps_domes(sc, 68, 262, p, 22, cols=3, rows=2)
     mc.readout(sc, 184, 262, p, 22, lines=3, pitch=24)
     mc.rotor_scomp(sc, 300, 262, p, t, r=38)
@@ -213,7 +213,7 @@ def c23(sc, p, t):          # Desert Outpost: dual scopes + full-width segment m
 def c24(sc, p, t):          # Forest Scout: tall scope left, bar graph right
     vscope(sc, 18, 62, 110, 298, p, t, label=None)
     bargraph(sc, 132, 62, 350, 176, p, n=14, seed=24, label="88")      # temp as the graph's scale tag
-    mc.batt_v(sc, 122, 62, 298, w=4)
+    mc.batt_v(sc, 119, 62, 298, w=4)
     mc.lamps_matrix(sc, 184, 250, p, 24)
     mc.rotor_radar(sc, 300, 250, p, t, r=44)
 
@@ -227,11 +227,11 @@ def c25(sc, p, t):          # Dark Ops: waterfall
 
 
 def c26(sc, p, t):          # Lava Forge: ring meter round a big rotor, edge lamp strips
-    edge_strip(sc, 18, 64, 230, p, 26)
-    edge_strip(sc, 340, 64, 230, p, 27)
+    edge_strip(sc, 18, 60, 206, p, 26)
+    edge_strip(sc, 340, 60, 206, p, 27)
     ring_meter(sc, 184, 148, 84, p, 66, w=8)
     mc.rotor_gear(sc, 184, 148, p, t, r=66)
-    mc.batt_v(sc, 32, 64, 230, w=6)
+    mc.batt_v(sc, 36, 60, 206, w=4)
     mc.lamps_diamonds(sc, 68, 268, p, 26)
     mc.readout(sc, 184, 268, p, 26, lines=3, pitch=24)
     mc.rotor_reticle(sc, 300, 268, p, t, r=36)
@@ -249,7 +249,7 @@ def c28(sc, p, t):          # Archive: hex table hero
     mc.scope_rect(sc, (18, 62, 168, 176), p, "ticks", t)
     hex_table(sc, 186, 74, 4, 6, p, 28, temp_cell=(2, 3))               # temp in hex (58 = 88)
     m.notched_frame(sc, 176, 59, 352, 179, p["frame"])
-    mc.batt_h(sc, 18, 350, 190)
+    mc.batt_h(sc, 18, 350, 193, h=4)
     mc.lamps_matrix(sc, 68, 256, p, 28)
     bargraph(sc, 140, 218, 228, 296, p, n=8, seed=28)
     mc.rotor_scomp(sc, 300, 256, p, t, r=42)
@@ -268,11 +268,11 @@ def c29(sc, p, t):          # Sentinel: hero scomp with voice ring
 
 
 def c30(sc, p, t):          # Signal Tower: wide spectrum bar graph
-    bargraph(sc, 18, 62, 350, 184, p, n=22, seed=30)
-    small_temp(sc, 344, 195, "88", p, anchor="rm", size=11)            # temp as the last channel number
+    bargraph(sc, 18, 62, 350, 172, p, n=22, seed=30)
+    small_temp(sc, 344, 183, "88", p, anchor="rm", size=11)            # temp as the last channel number
     for i, ch in enumerate(("01", "05", "09", "13", "17")):
-        sc.text(30 + i * 68, 195, ch, f(m.MONT, 10), p["tick"], "mm")
-    mc.batt_h(sc, 18, 290, 205, h=4)
+        sc.text(30 + i * 68, 183, ch, f(m.MONT, 10), p["tick"], "mm")
+    mc.batt_h(sc, 18, 350, 194, h=4)
     mc.lamps_grid(sc, 68, 262, p, 30)
     mc.readout(sc, 184, 258, p, 30, lines=4, pitch=29)
     mc.rotor_radar(sc, 300, 262, p, t, r=44)
@@ -292,7 +292,7 @@ def c32(sc, p, t):          # Command Deck: stacked dual scope
     mc.scope_rect(sc, (18, 126, 288, 180), p, "notched", t + 13, tilt=(-10, 4))
     sc.text(282, 120, "CH 88", f(m.MONT, 10), p["tick"], "rm")         # temp as a channel tag
     mc.meter_vseg(sc, 306, 49, 178, p, 66)
-    mc.batt_v(sc, 346, 49, 178)
+    mc.batt_v(sc, 348, 49, 178, w=6)
     mc.lamps_grid(sc, 68, 250, p, 32)
     mc.readout(sc, 184, 246, p, 32, lines=4, pitch=29)
     mc.rotor_gear(sc, 300, 250, p, t, r=44)
@@ -302,7 +302,7 @@ def c33(sc, p, t):          # Interceptor Wing: round scope flanked by bar graph
     mc.scope_round(sc, 184, 136, 74, p, t)
     bargraph(sc, 18, 66, 90, 206, p, n=4, seed=33)
     bargraph(sc, 278, 66, 350, 206, p, n=4, seed=34)
-    mc.batt_h(sc, 112, 256, 218, h=4)
+    mc.batt_h(sc, 112, 256, 224, h=4)
     mc.lamps_diamonds(sc, 68, 268, p, 33)
     mc.readout(sc, 184, 266, p, 33, lines=3, pitch=24)
     mc.rotor_square(sc, 300, 268, p, t, r=36)
