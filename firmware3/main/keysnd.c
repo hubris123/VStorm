@@ -7,10 +7,11 @@
  *   STUTTER   2-4 quick clicks / pops in a row, uneven
  *   CARRIER   a flat block of radio hiss (90-160 ms), soft edges, no sharp click
  *   SQUELCH   hiss tail -> gap -> click (classic key-down)
- *   CHIRP     bright crack -> ringing whistle that fades (80-130 ms)
- *   POPS      1-2 small pops -> click with a held tone
- * Ring pitches come from the reference groups: low ~340 / 800-1050, mid 1380-1700,
- * high 2150-2650 Hz. Some sounds carry a dim background hiss, some are clean.
+ *   CHIRP     bright crack -> a brighter, slower-fading burst of static (no whistle)
+ *   POPS      1-2 small pops -> a stronger click with a longer static tail
+ * Each burst is broad noise centred on one of the reference bands: low ~340 / 800-1050,
+ * mid 1380-1700, high 2150-2650 Hz. Never a tuned ring: the references have no tones
+ * (tonality checked: tools/voice_analysis). Some sounds carry a dim background hiss, some are clean.
  * Pure C, float, no allocation: runs per sample in the audio task. */
 #include <math.h>
 #include <stdint.h>
@@ -58,11 +59,11 @@ enum { TOCK, STUTTER, CARRIER, SQUELCH, CHIRP, POPS, NKINDS };
 #define MAX_CLICKS 5
 #define MAX_BLOCKS 2
 
-typedef struct {               /* a click: impulse + crackle that rings a resonator */
+typedef struct {               /* a click: a sharp impulse + a very short burst of coloured noise */
     int at;
     float amp, bright;         /* bright: how much raw crack gets past the radio band */
-    bq_t ring;
-    float ring_gain;
+    bq_t colour;               /* broad band-pass (Q ~1): colours the burst, never whistles */
+    float decay, env;          /* per-sample decay of the burst */
 } click_t;
 
 typedef struct {               /* a block of band-limited radio hiss with soft or hard edges */
@@ -101,10 +102,11 @@ static void add_click(int at, float amp, float f, float t20, float bright)
     c->at = at;
     c->amp = amp;
     c->bright = bright;
-    if (f > s_rate * 0.45f) f = s_rate * 0.45f;
-    float tau = t20 / 2.303f;                     /* ring falls 20 dB in t20 seconds */
-    bq_band(&c->ring, f, f * (float)M_PI * tau, s_rate);
-    c->ring_gain = 6.0f + 4.0f * rnd01();
+    if (f > s_rate * 0.42f) f = s_rate * 0.42f;
+    float tau = t20 / 2.303f;                     /* burst falls 20 dB in t20 seconds */
+    c->decay = expf(-1.0f / (tau * s_rate));
+    c->env = 1.0f;
+    bq_band(&c->colour, f, jit(0.7f, 1.4f), s_rate);
 }
 
 static void add_block(int start, int end, float f, float qf, float amp, int edge)
@@ -157,7 +159,7 @@ void keysnd_start(bool keyup, float volume)
     }
     case CARRIER: {
         int s = MS(jit(10, 40)), e = s + MS(jit(90, 160));
-        add_block(s, e, jit(1200, 2200), jit(0.9f, 1.8f), jit(0.25f, 0.42f), MS(jit(6, 18)));
+        add_block(s, e, jit(1200, 2200), jit(0.6f, 1.0f), jit(0.25f, 0.42f), MS(jit(6, 18)));
         if (rnd01() < 0.4f) add_click(s, jit(0.3f, 0.6f), f, 0.015f, 0.1f);
         end = e + MS(jit(10, 30));
         break;
@@ -173,7 +175,7 @@ void keysnd_start(bool keyup, float volume)
         int at = MS(jit(15, 50));
         float cf = jit(2050, 2600);
         add_click(at, 1.0f, cf, jit(0.05f, 0.09f), jit(0.5f, 0.9f));     /* long whistle */
-        add_block(at, at + MS(jit(60, 110)), cf, 2.5f, jit(0.12f, 0.25f), MS(40));
+        add_block(at, at + MS(jit(60, 110)), cf, 0.9f, jit(0.12f, 0.25f), MS(40));
         end = at + MS(jit(110, 160));
         break;
     }
@@ -184,14 +186,14 @@ void keysnd_start(bool keyup, float volume)
             at += MS(jit(25, 45));
         }
         add_click(at, jit(0.8f, 1.0f), f, jit(0.03f, 0.06f), jit(0.1f, 0.3f));
-        add_block(at, at + MS(jit(50, 90)), f, 1.6f, jit(0.04f, 0.09f), MS(30));
+        add_block(at, at + MS(jit(50, 90)), f, 0.8f, jit(0.04f, 0.09f), MS(30));
         end = at + MS(jit(90, 130));
         break;
     }
     }
     K.len = end;
     /* some sounds carry a dim full-band hiss under everything (like an open channel) */
-    K.floor_amp = rnd01() < 0.5f ? jit(0.004f, 0.012f) : 0.0f;
+    K.floor_amp = rnd01() < 0.8f ? jit(0.008f, 0.02f) : 0.0f;
     bq_band(&K.floor_band, jit(1500, 3000), 0.4f, s_rate);
     bq_pass(&K.lp1, jit(1900, 3000), false, s_rate);       /* the radio's band limit */
     bq_pass(&K.lp2, 3400, false, s_rate);
@@ -209,12 +211,11 @@ float keysnd_next(void)
         click_t *c = &K.c[i];
         int since = n - c->at;
         if (since < 0) continue;
-        float exc = 0;
-        if (since == 0) exc = c->amp;
-        else if (since == 1) exc = -0.6f * c->amp;
-        if (since < MS(4)) exc += noise() * 0.35f * c->amp * (1.0f - since / (float)MS(4));
-        body += bq_run(&c->ring, exc) * c->ring_gain + exc * 0.4f;
-        crack += exc * c->bright;
+        float imp = since == 0 ? c->amp : since == 1 ? -0.6f * c->amp : 0.0f;
+        float burst = noise() * c->env * c->amp;
+        c->env *= c->decay;
+        body += bq_run(&c->colour, burst) * 2.2f + imp * 0.5f;
+        crack += imp * c->bright;
     }
     for (int i = 0; i < K.nb; i++) {
         block_t *b = &K.b[i];
