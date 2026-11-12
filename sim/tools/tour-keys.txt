@@ -1,0 +1,134 @@
+# Every key on every screen (all key styles): capcheck prints any label past the 7 px margin
+wait 600
+capcheck main_muted
+tap 300 376
+capcheck main_live
+tap 300 376
+tap 184 376
+capcheck p01_VOLUME
+tap 300 364
+capcheck p02_VOICE
+tap 300 256
+signal 0.5 3000
+capcheck learn_reading
+tap 184 376
+capcheck learn_paused
+tap 184 376
+signal 0.5 9000
+wait 400
+signal 0.5 5000
+wait 1500
+capcheck result
+tap 300 376
+capcheck adjust
+tap 184 256
+capcheck adjust_tone
+tap 300 376
+capcheck reset
+tap 68 376
+capcheck back_result
+tap 68 376
+capcheck after_retry
+tap 68 376
+capcheck voice_page_again
+tap 300 256
+tap 300 376
+capcheck done_early
+tap 68 376
+tap 300 364
+capcheck p03_EFFECT
+tap 300 364
+capcheck p04_VOX
+tap 300 364
+capcheck p05_STATIC
+tap 300 364
+capcheck p06_CLICK
+tap 300 364
+capcheck p07_BRIGHT
+tap 300 364
+capcheck p08_CALLSIGN
+tap 184 248
+capcheck callsign_editor
+tap 184 364
+tap 68 364
+tap 300 364
+tap 300 364
+capcheck p09_RESET
+tap 300 364
+capcheck p10_DISPLAY
+tap 300 364
+capcheck p11_SENSORS
+tap 300 364
+capcheck p12_SKIN
+tap 300 364
+tap 184 364
+tap 184 376
+tap 68 364
+tap 300 256
+tap 184 256
+wait 300
+tap 184 364
+wait 300
+capcheck main_flat
+tap 184 376
+tap 68 364
+tap 300 256
+tap 300 256
+tap 184 256
+wait 300
+tap 184 364
+wait 300
+capcheck main_strip
+tap 184 376
+tap 68 364
+tap 300 256
+tap 300 256
+tap 184 256
+wait 300
+tap 184 364
+wait 300
+capcheck main_ring
+tap 184 376
+tap 68 364
+tap 300 256
+tap 184 256
+wait 300
+tap 184 364
+wait 300
+capcheck main_pill
+tap 184 376
+tap 68 364
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 300 256
+tap 184 256
+wait 300
+tap 184 364
+wait 300
+capcheck main_ring2
+tap 184 376
+tap 68 364
+tap 300 256
+tap 300 256
+tap 184 256
+wait 300
+tap 184 364
+wait 300
+capcheck main_flat2
+tap 68 376
+tap 68 376
+wait 600
+capcheck lock

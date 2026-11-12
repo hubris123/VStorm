@@ -74,6 +74,12 @@ for (const l of lines) {
       for (let t = 0; t < 30000 && Math.sign(sim.exports.ui_dbg_ring_spd(0)) === sg; t += 50) step(50);
       step(n[0] || 0); break;
     }
+    case 'capcheck': {  // worst key-label overflow past the 7 px margin on the shown screen
+      const o = sim.exports.ui_dbg_cap_overflow();
+      const ptr = sim.exports.ui_dbg_text(); const mem = new Uint8Array(sim.exports.memory.buffer, ptr, 64);
+      const txt = new TextDecoder().decode(mem.slice(0, mem.indexOf(0))).replace(/\n/g, '|');
+      console.log('capcheck', a[0] || '', o > 0 ? 'OVERFLOW ' + o + ' px: ' + txt : 'ok (' + o + ' px spare)'); break;
+    }
     case 'shot': png(path.join(outDir, a[0] + '.png')); console.log('shot', a[0], 'lvgl heap used', sim.memUsed(), 'B'); break;
     default: throw new Error('unknown command: ' + l);
   }

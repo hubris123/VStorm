@@ -105,6 +105,11 @@ Interaction rules that follow:
 - **One-thumb reach:** the most-used keys sit in the bottom half.
 - **Never touch-only for the essentials.** BOOT keeps MUTED ↔ LIVE so it works blind/gloved.
 
+**Key labels always fit.** Every key label stays at least 7 px inside its cap. Several words
+that don't fit go on two lines (the main label moves up to make room); a single word that
+doesn't fit is squeezed horizontally (same height, narrower), never shrunk to a smaller size.
+Check with `sim/tools/tour-keys.txt` (`capcheck` reports any label past the margin).
+
 ## 5. Screens
 
 | Screen | Job | Main controls |

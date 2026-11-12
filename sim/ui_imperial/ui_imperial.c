@@ -10,6 +10,7 @@
  * Reacts to the voice through the VOX gate (section 6a). */
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <math.h>
 #include "lvgl.h"
 #include "esp_random.h"
@@ -114,10 +115,123 @@ static lv_obj_t *aureb_label(lv_obj_t *p, const char *t, lv_font_t *f, lv_color_
 /* ---------------- key caps (the pressable part; housings are in the skin) ---------------- */
 typedef struct {
     lv_obj_t *cap, *lbl, *sub, *extra;   /* extra: strip (KEYS_STRIP) or indicator dot (KEYS_PILL) */
+    lv_obj_t *sq_lbl, *sq_sub;           /* horizontally squeezed copies of a too-wide word */
     lv_color_t accent;
-    uint8_t style;
+    uint8_t style, symbol, fitted;
 } cap_t;
 static uint8_t cap_style_mode = KEYS_BEVEL;   /* key style used by make_cap (set per skin for MAIN) */
+
+/* ---- key labels always fit inside the cap (7 px clear of each edge) ----
+ * several words that don't fit: two lines; one word that doesn't fit: squeezed horizontally
+ * (drawn once, then narrowed to the cap width, keeping its height) */
+#define CAP_PAD 7
+
+static int text_w(lv_obj_t *l)
+{
+    lv_point_t sz;
+    lv_txt_get_size(&sz, lv_label_get_text(l), lv_obj_get_style_text_font(l, 0),
+                    lv_obj_get_style_text_letter_space(l, 0), lv_obj_get_style_text_line_space(l, 0),
+                    LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return sz.x;
+}
+
+static void sq_free_cb(lv_event_t *e)
+{
+    void *b = lv_event_get_user_data(e);
+    if (b) lv_mem_free(b);
+}
+
+static lv_obj_t *squeeze_label(lv_obj_t *lbl, int maxw)
+{
+    const char *txt = lv_label_get_text(lbl);
+    const lv_font_t *f = lv_obj_get_style_text_font(lbl, 0);
+    lv_color_t col = lv_obj_get_style_text_color(lbl, 0);
+    int ls = lv_obj_get_style_text_line_space(lbl, 0);
+    lv_point_t sz;
+    lv_txt_get_size(&sz, txt, f, 0, ls, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    int w = sz.x + 2, h = sz.y;
+    if (w <= maxw || h <= 0) return NULL;
+    lv_color_t *tmp = lv_mem_alloc(w * h * sizeof(lv_color_t));
+    uint8_t *dst = lv_mem_alloc(maxw * h * LV_IMG_PX_SIZE_ALPHA_BYTE);
+    if (!tmp || !dst) { if (tmp) lv_mem_free(tmp); if (dst) lv_mem_free(dst); return NULL; }
+    /* white text on black, then brightness = coverage: no alpha drawing needed */
+    lv_obj_t *tc = lv_canvas_create(lv_layer_sys());
+    lv_canvas_set_buffer(tc, tmp, w, h, LV_IMG_CF_TRUE_COLOR);
+    lv_canvas_fill_bg(tc, lv_color_black(), LV_OPA_COVER);
+    lv_draw_label_dsc_t d;
+    lv_draw_label_dsc_init(&d);
+    d.color = lv_color_white();
+    d.font = f;
+    d.line_space = ls;
+    d.align = LV_TEXT_ALIGN_CENTER;
+    lv_canvas_draw_text(tc, 0, 0, w, &d, txt);
+    float s = (float)w / maxw;
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < maxw; x++) {
+            float a0 = x * s, a1 = (x + 1) * s, acc = 0;
+            for (int sx = (int)a0; sx < w && sx < a1; sx++) {
+                float lo = sx < a0 ? a0 : (float)sx, hi = sx + 1 > a1 ? a1 : (float)(sx + 1);
+                acc += lv_color_brightness(tmp[y * w + sx]) * (hi - lo);
+            }
+            uint8_t *px = dst + (y * maxw + x) * LV_IMG_PX_SIZE_ALPHA_BYTE;
+            memcpy(px, &col, sizeof(lv_color_t));
+            int a = (int)(acc / s + 0.5f);
+            px[LV_IMG_PX_SIZE_ALPHA_BYTE - 1] = (uint8_t)(a > 255 ? 255 : a);
+        }
+    }
+    lv_obj_del(tc);
+    lv_mem_free(tmp);
+    lv_obj_t *c = lv_canvas_create(lv_obj_get_parent(lbl));
+    lv_canvas_set_buffer(c, dst, maxw, h, LV_IMG_CF_TRUE_COLOR_ALPHA);
+    lv_obj_add_event_cb(c, sq_free_cb, LV_EVENT_DELETE, dst);
+    lv_obj_clear_flag(c, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(lbl, LV_OBJ_FLAG_HIDDEN);
+    return c;
+}
+
+static void cap_fit(cap_t *k)
+{
+    lv_obj_update_layout(k->cap);                       /* a new key has no size until laid out */
+    int avail = lv_obj_get_width(k->cap) - 2 * CAP_PAD - 1;   /* 1 px: label boxes round up */
+    bool changed = false, was = k->fitted != 0;
+    uint8_t bits = 0;                                    /* bit i: label i was wrapped by us */
+    lv_obj_t *L[2] = {k->lbl, k->sub}, **SQ[2] = {&k->sq_lbl, &k->sq_sub};
+    for (int i = 0; i < 2; i++) {
+        if (!L[i]) continue;
+        if (*SQ[i]) { lv_obj_del(*SQ[i]); *SQ[i] = NULL; }
+        lv_obj_clear_flag(L[i], LV_OBJ_FLAG_HIDDEN);
+        const char *t = lv_label_get_text(L[i]);
+        if ((k->fitted & (1 << i)) && strchr(t, '\n')) { bits |= 1 << i; changed = true; }   /* still wrapped */
+        if (text_w(L[i]) > avail && strchr(t, ' ') && !strchr(t, '\n')) {     /* two lines */
+            char buf[48];
+            strncpy(buf, t, sizeof buf - 1); buf[sizeof buf - 1] = 0;
+            int n = (int)strlen(buf), best = -1;
+            for (int j = 0; j < n; j++)                                       /* the space nearest the middle */
+                if (buf[j] == ' ' && (best < 0 || abs(j - n / 2) < abs(best - n / 2))) best = j;
+            buf[best] = '\n';
+            lv_label_set_text(L[i], buf);
+            lv_obj_set_style_text_align(L[i], LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_style_text_line_space(L[i], -2, 0);
+            bits |= 1 << i;
+            changed = true;
+        }
+        if (text_w(L[i]) > avail) { *SQ[i] = squeeze_label(L[i], avail); changed = true; }
+    }
+    k->fitted = changed ? (bits | 4) : 0;
+    if (!changed && !was) return;
+    lv_obj_t *A = k->sq_lbl ? k->sq_lbl : k->lbl, *B = k->sub ? (k->sq_sub ? k->sq_sub : k->sub) : NULL;
+    if (!changed) {                                      /* back to the standard layout */
+        if (B) { lv_obj_align(A, LV_ALIGN_CENTER, 0, k->symbol ? -12 : -10); lv_obj_align(B, LV_ALIGN_CENTER, 0, k->symbol ? 16 : 13); }
+        else lv_obj_center(A);
+        return;
+    }
+    lv_obj_update_layout(A);
+    int ha = lv_obj_get_height(A), hb = 0;
+    if (B) { lv_obj_update_layout(B); hb = lv_obj_get_height(B); }
+    if (!B) { lv_obj_center(A); return; }
+    lv_obj_align(A, LV_ALIGN_CENTER, 0, -(hb + 2) / 2);
+    lv_obj_align(B, LV_ALIGN_CENTER, 0, (ha + 2) / 2);
+}
 
 static void cap_style(cap_t *k, bool lit)
 {
@@ -132,6 +246,7 @@ static void cap_style(cap_t *k, bool lit)
         lv_obj_set_style_shadow_opa(c, LV_OPA_70, 0);
         lv_obj_set_style_text_color(k->lbl, lit ? C(0xFFF4F0) : k->accent, 0);
         if (k->sub) lv_obj_set_style_text_color(k->sub, COL_LABEL, 0);
+        cap_fit(k);
         return;
     }
     if (k->extra && k->style == KEYS_PILL)
@@ -154,16 +269,13 @@ static void cap_style(cap_t *k, bool lit)
         lv_obj_set_style_text_color(k->lbl, k->accent, 0);
         if (k->sub) lv_obj_set_style_text_color(k->sub, COL_LABEL, 0);
     }
+    cap_fit(k);
 }
 
-/* sub-label: 14 px, 12 px only if it doesn't fit the cap (docs/UI-DESIGN.md section 3) */
+/* sub-label: 14 px (labels that don't fit wrap or squeeze in cap_fit, never shrink) */
 static void sub_fit(cap_t *k)
 {
-    if (!k->sub) return;
-    lv_point_t sz;
-    lv_txt_get_size(&sz, lv_label_get_text(k->sub), &lv_font_montserrat_14, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    lv_obj_set_style_text_font(k->sub, sz.x > lv_obj_get_width(k->cap) - 10 ? &lv_font_montserrat_12
-                                                                         : &lv_font_montserrat_14, 0);
+    if (k->sub) lv_obj_set_style_text_font(k->sub, &lv_font_montserrat_14, 0);
 }
 
 /* housing at (hx, hy, hw, hh); the cap sits 11 px inside, touch area = whole housing */
@@ -172,6 +284,7 @@ static cap_t make_cap(lv_obj_t *scr, int hx, int hy, int hw, int hh, const char 
 {
     cap_t k = {0};
     k.accent = accent;
+    k.symbol = symbol;
     k.style = cap_style_mode;
     bool flat = k.style == KEYS_FLAT;
     int in = flat ? 4 : 11;                               /* flat keys have no housing in the art */
@@ -190,6 +303,9 @@ static cap_t make_cap(lv_obj_t *scr, int hx, int hy, int hw, int hh, const char 
     lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_ext_click_area(c, in);
     k.cap = c;
+#ifdef UI_SIM
+    { extern lv_obj_t *g_dbg_caps[]; extern int g_dbg_ncaps; if (g_dbg_ncaps < 256) g_dbg_caps[g_dbg_ncaps++] = c; }
+#endif
     if (k.style == KEYS_STRIP) {                          /* coloured strip across the top of the cap */
         k.extra = box(c, 2, 2, hw - 2 * in - 4, 6, accent);
         lv_obj_set_style_radius(k.extra, 2, 0);
@@ -1361,8 +1477,9 @@ static void live_refresh(void)
     lv_obj_set_style_text_line_space(cap_live.sub, -2, 0);
     lv_obj_set_style_text_font(cap_live.sub, &lv_font_montserrat_14, 0);
     cap_style(&cap_live, !m);
-    lv_obj_align(cap_live.lbl, LV_ALIGN_CENTER, 0, m ? -17 : -10);
-    lv_obj_align(cap_live.sub, LV_ALIGN_CENTER, 0, m ? 13 : 13);
+    int up = cap_live.style == KEYS_PILL ? 5 : 0;        /* keep clear of the pill's indicator dot */
+    lv_obj_align(cap_live.lbl, LV_ALIGN_CENTER, 0, (m ? -17 : -10) - up);
+    lv_obj_align(cap_live.sub, LV_ALIGN_CENTER, 0, 13 - up);
 }
 
 static void live_cb(lv_event_t *e) { audio_set_mute(!audio_is_muted()); live_refresh(); }
@@ -2068,7 +2185,6 @@ static void build_voice_page(lv_obj_t *scr)
     center_at(vp_hint, 184, 175);
     cap_voice[0] = make_cap(scr, 16, 204, 104, 104, "AUTO", "LEARN FIRST", COL_GREEN, false, voice_key_cb, LV_EVENT_CLICKED, (void *)0);
     cap_voice[1] = make_cap(scr, 132, 204, 104, 104, "TROOPER", "TARGET", COL_BLUE, false, voice_key_cb, LV_EVENT_CLICKED, (void *)1);
-    lv_obj_set_style_text_font(cap_voice[1].lbl, &lv_font_montserrat_16, 0);
     cap_voice[2] = make_cap(scr, 248, 204, 104, 104, "LEARN", "READ SCRIPT", COL_AMBER, false, voice_key_cb, LV_EVENT_CLICKED, (void *)2);
 }
 
@@ -2081,7 +2197,7 @@ static lv_obj_t *ad_row[2], *ad_mark[2], *ad_name[2], *ad_val[2], *ad_seg[2][10]
 static vmap_t rd_map, rs_map;
 static cap_t vk[3];                         /* bottom keys, relabelled per state */
 static cap_t ak[3];                         /* adjust: - | SELECT | + */
-static int vs_state, rd_line_i, ad_sel;
+static int vs_state, rd_line_i, ad_sel, rd_spoken_ms, rd_quiet_ms;
 static uint32_t rd_t0, rd_paused_ms, rd_pause_t;
 static bool rd_paused;
 static float rd_you, v_pr = 1, v_fr = 1, l_pr = 1, l_fr = 1, l_f0;
@@ -2124,6 +2240,7 @@ static void adj_refresh(void)
     lv_label_set_text(ak[0].sub, nm);
     lv_label_set_text(ak[2].sub, nm);
     lv_label_set_text(ak[1].lbl, ad_sel ? "PITCH" : "TONE");
+    for (int i = 0; i < 3; i++) cap_fit(&ak[i]);
     ui_platform_voice_live(true, v_pr, v_fr);
 }
 
@@ -2186,6 +2303,7 @@ static void voice_start_reading(void)
     rd_paused = false;
     rd_paused_ms = 0;
     rd_line_i = 0;
+    rd_spoken_ms = rd_quiet_ms = 0;
     rd_you = 0;
     v_pr = v_fr = 1;
     rd_lines();
@@ -2273,9 +2391,13 @@ static void voice_tick(void)
     lv_obj_set_x(rd_time, 336 - lv_obj_get_width(rd_time));
     for (int i = 0; i < LEARN_SECS; i++)
         lv_obj_set_style_bg_color(rd_prog[i], i < secs ? COL_AMBER : COL_DIM, 0);
-    int li = (int)(ms / 2200);                       /* a new line every 2.2 s */
-    if (li != rd_line_i) { rd_line_i = li; rd_lines(); }
+    /* next line once this one has been read: some talking, then a pause (not on a clock,
+     * and not mid-line: the short gaps between words are well under 0.5 s) */
     float f0 = vshift_live_f0();
+    bool talking = f0 > 0 || audio_get_level() > (S.vox > 6 ? S.vox : 6);
+    if (talking) { rd_spoken_ms += 100; rd_quiet_ms = 0; }
+    else rd_quiet_ms += 100;
+    if (rd_spoken_ms >= 800 && rd_quiet_ms >= 500) { rd_line_i++; rd_spoken_ms = 0; rd_lines(); }
     if (f0 > 0) rd_you = rd_you > 0 ? rd_you * 0.85f + f0 * 0.15f : f0;
     vs_learn_t r;
     if (vlearn_result(voice_target(), &r) && r.seconds > 2.5f) {   /* shift builds up as it learns */
@@ -2765,4 +2887,44 @@ __attribute__((export_name("ui_dbg_ring_spd"))) float ui_dbg_ring_spd(int r)
         if (con_main.part[i].d->kind == PK_ROTOR) return con_main.part[i].spd[r % 3];
     return 0;
 }
+#endif
+
+#ifdef UI_SIM
+/* simulator-only probe for tests: how far key labels reach past the 7 px margin on the shown
+ * screen (0 = all inside). Writes the worst key's text to g_dbg_text. */
+lv_obj_t *g_dbg_caps[256];
+int g_dbg_ncaps;
+char g_dbg_text[64];
+static bool dbg_shown(lv_obj_t *o)
+{
+    for (; o; o = lv_obj_get_parent(o)) if (lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return false;
+    return true;
+}
+__attribute__((export_name("ui_dbg_cap_overflow"))) int ui_dbg_cap_overflow(void)
+{
+    int worst = -99;
+    g_dbg_text[0] = 0;
+    for (int i = 0; i < g_dbg_ncaps; i++) {
+        lv_obj_t *c = g_dbg_caps[i];
+        if (!lv_obj_is_valid(c) || lv_obj_get_screen(c) != lv_scr_act() || !dbg_shown(c)) continue;
+        lv_area_t ca;
+        lv_obj_get_coords(c, &ca);
+        for (uint32_t j = 0; j < lv_obj_get_child_cnt(c); j++) {
+            lv_obj_t *ch = lv_obj_get_child(c, j);
+            if (!dbg_shown(ch)) continue;
+            bool is_lbl = lv_obj_check_type(ch, &lv_label_class), is_cv = lv_obj_check_type(ch, &lv_canvas_class);
+            if (!is_lbl && !is_cv) continue;
+            lv_area_t a;
+            lv_obj_get_coords(ch, &a);
+            int over = (ca.x1 + 7) - a.x1;
+            if (a.x2 - (ca.x2 - 7) > over) over = a.x2 - (ca.x2 - 7);
+            if (over > worst) {
+                worst = over;
+                snprintf(g_dbg_text, sizeof g_dbg_text, "%s", is_lbl ? lv_label_get_text(ch) : "(squeezed)");
+            }
+        }
+    }
+    return worst;
+}
+__attribute__((export_name("ui_dbg_text"))) const char *ui_dbg_text(void) { return g_dbg_text; }
 #endif
