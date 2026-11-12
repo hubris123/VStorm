@@ -778,14 +778,14 @@ static void build_settings(void)
     lv_obj_t *d3 = label(grp_disp, "Tap the screen 5 times to wake it.", &lv_font_montserrat_14, COL_AMBER);
     center_at(d3, 184, 146);
 
-    cap_minus = make_cap(scr_settings, 16, 196, 160, 104, LV_SYMBOL_MINUS, "HOLD TO REPEAT", COL_BLUE, true,
+    cap_minus = make_cap(scr_settings, 16, 204, 160, 104, LV_SYMBOL_MINUS, "HOLD TO REPEAT", COL_BLUE, true,
                          step_cb, LV_EVENT_PRESSED, (void *)(intptr_t)-1);
-    cap_plus = make_cap(scr_settings, 192, 196, 160, 104, LV_SYMBOL_PLUS, "HOLD TO REPEAT", COL_BLUE, true,
+    cap_plus = make_cap(scr_settings, 192, 204, 160, 104, LV_SYMBOL_PLUS, "HOLD TO REPEAT", COL_BLUE, true,
                         step_cb, LV_EVENT_PRESSED, (void *)(intptr_t)1);
-    cap_wide = make_cap(scr_settings, 16, 196, 336, 104, "EDIT", "", COL_AMBER, false, wide_cb, LV_EVENT_ALL, NULL);
-    make_cap(scr_settings, 16, 312, 104, 104, LV_SYMBOL_LEFT, "PREV", COL_BLUE, true, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
-    make_cap(scr_settings, 132, 312, 104, 104, "MAIN", "EXIT", COL_TEXT, false, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)0);
-    make_cap(scr_settings, 248, 312, 104, 104, LV_SYMBOL_RIGHT, "NEXT", COL_BLUE, true, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
+    cap_wide = make_cap(scr_settings, 16, 204, 336, 104, "EDIT", "", COL_AMBER, false, wide_cb, LV_EVENT_ALL, NULL);
+    make_cap(scr_settings, 16, 320, 104, 114, LV_SYMBOL_LEFT, "PREV", COL_BLUE, true, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
+    make_cap(scr_settings, 132, 320, 104, 114, "MAIN", "EXIT", COL_TEXT, false, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)0);
+    make_cap(scr_settings, 248, 320, 104, 114, LV_SYMBOL_RIGHT, "NEXT", COL_BLUE, true, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
 }
 
 /* ================= CALLSIGN (code cylinder) ================= */
@@ -872,16 +872,16 @@ static void build_callsign(void)
     lv_obj_set_style_border_color(drum_sel, COL_AMBER, 0);
     drum_mark = box(scr_callsign, 0, 151, 13, 5, COL_AMBER);
     cs_preview = label(scr_callsign, "", f_aureng20 ? f_aureng20 : &lv_font_montserrat_20, COL_RED);
-    make_cap(scr_callsign, 16, 196, 160, 104, LV_SYMBOL_UP, "NEXT CHAR", COL_AMBER, true,
+    make_cap(scr_callsign, 16, 204, 160, 104, LV_SYMBOL_UP, "NEXT CHAR", COL_AMBER, true,
              cs_char_cb, LV_EVENT_PRESSED, (void *)(intptr_t)1);
-    make_cap(scr_callsign, 192, 196, 160, 104, LV_SYMBOL_DOWN, "PREV CHAR", COL_AMBER, true,
+    make_cap(scr_callsign, 192, 204, 160, 104, LV_SYMBOL_DOWN, "PREV CHAR", COL_AMBER, true,
              cs_char_cb, LV_EVENT_PRESSED, (void *)(intptr_t)-1);
-    make_cap(scr_callsign, 16, 312, 104, 104, LV_SYMBOL_LEFT, "POSITION", COL_BLUE, true,
+    make_cap(scr_callsign, 16, 320, 104, 114, LV_SYMBOL_LEFT, "POSITION", COL_BLUE, true,
              cs_pos_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
-    cap_t save = make_cap(scr_callsign, 132, 312, 104, 104, "SAVE", "COMMIT", COL_GREEN, false,
+    cap_t save = make_cap(scr_callsign, 132, 320, 104, 114, "SAVE", "COMMIT", COL_GREEN, false,
                           cs_save_cb, LV_EVENT_CLICKED, NULL);
     cap_style(&save, true);
-    make_cap(scr_callsign, 248, 312, 104, 104, LV_SYMBOL_RIGHT, "POSITION", COL_BLUE, true,
+    make_cap(scr_callsign, 248, 320, 104, 114, LV_SYMBOL_RIGHT, "POSITION", COL_BLUE, true,
              cs_pos_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
 }
 

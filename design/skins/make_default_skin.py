@@ -85,7 +85,7 @@ def settings_common(sc):
         sc.rect(x, 46, x + 25, 50, fill=m.DIM)
     m.notched_frame(sc, 16, 60, 352, 184)
     for x in (16, 132, 248):
-        wells(sc, x, 312, 104, 104)
+        wells(sc, x, 320, 104, 114)
 
 
 def settings_value_bg():
@@ -97,15 +97,15 @@ def settings_value_bg():
     sc.text(cx, cy + 27, "LEVEL", m.font(m.MONT, 13), m.LABEL, "mm")
     for i in range(10):
         sc.rect(176 + i * 17, 94, 189 + i * 17, 112, fill=m.DIM)
-    wells(sc, 16, 196, 160, 104)
-    wells(sc, 192, 196, 160, 104)
+    wells(sc, 16, 204, 160, 104)
+    wells(sc, 192, 204, 160, 104)
     return sc
 
 
 def settings_wide_bg():
     sc = m.Screen()
     settings_common(sc)
-    wells(sc, 16, 196, 336, 104)
+    wells(sc, 16, 204, 336, 104)
     return sc
 
 
@@ -122,10 +122,10 @@ def callsign_bg():
         sc.vgrad(x, 124, x + dw, 146, "#1A1F24", "#000000")
         sc.rect(x, 86, x + dw, 118, fill="#1A1F24")
         sc.rect(x, 58, x + dw, 146, outline="#2A2F34", width=1)
-    wells(sc, 16, 196, 160, 104)
-    wells(sc, 192, 196, 160, 104)
+    wells(sc, 16, 204, 160, 104)
+    wells(sc, 192, 204, 160, 104)
     for x in (16, 132, 248):
-        wells(sc, x, 312, 104, 104)
+        wells(sc, x, 320, 104, 114)
     return sc
 
 

@@ -469,11 +469,11 @@ def settings_screen(name="EFFECT", value=70, page=2, desc="DRIVE + BITCRUSH", un
     for i, c in enumerate(["blue", "red", "grey"]):   # small status lamps (drift like the main cluster)
         sc.rect(176 + i * 22, 168, 192 + i * 22, 176, fill=LAMP[c])
     notched_frame(sc, 16, 60, 352, 184)
-    key(sc, 16, 196, 160, 104, "−", BLUE, sub="HOLD TO REPEAT", big=True)
-    key(sc, 192, 196, 160, 104, "+", BLUE, sub="HOLD TO REPEAT", big=True)
-    key(sc, 16, 312, 104, 104, "◀", BLUE, sub="PREV", big=True)
-    key(sc, 132, 312, 104, 104, "MAIN", TEXT, sub="EXIT")
-    key(sc, 248, 312, 104, 104, "▶", BLUE, sub="NEXT", big=True)
+    key(sc, 16, 204, 160, 104, "−", BLUE, sub="HOLD TO REPEAT", big=True)
+    key(sc, 192, 204, 160, 104, "+", BLUE, sub="HOLD TO REPEAT", big=True)
+    key(sc, 16, 320, 104, 114, "◀", BLUE, sub="PREV", big=True)
+    key(sc, 132, 320, 104, 114, "MAIN", TEXT, sub="EXIT")
+    key(sc, 248, 320, 104, 114, "▶", BLUE, sub="NEXT", big=True)
     return sc
 
 
@@ -485,15 +485,15 @@ def reset_screen(progress=0.6):
     for i in range(20):
         sc.rect(46 + i * 14, 138, 56 + i * 14, 160, fill=RED if i < int(progress * 20) else DIM)
     notched_frame(sc, 16, 60, 352, 184)
-    housing(sc, 16, 196, 336, 104)
-    sc.vgrad(30, 210, 338, 286, "#4A1014", "#1E0507", CAP_R)
-    sc.glow_rect(30, 210, 338, 286, RED, 140, ring=True)
-    sc.line([(30 + CAP_R, 211), (338 - CAP_R, 211)], "#8A3A3E", 1)
-    sc.text(184, 240, "HOLD TO ERASE", font(MONT, 20), "#F0C8C8", "mm")
-    sc.text(184, 266, f"ARMING {int(progress * 100)}%", font(MONT, 14), "#E8A0A0", "mm")
-    key(sc, 16, 312, 104, 104, "◀", BLUE, sub="PREV", big=True)
-    key(sc, 132, 312, 104, 104, "MAIN", TEXT, sub="EXIT")
-    key(sc, 248, 312, 104, 104, "▶", BLUE, sub="NEXT", big=True)
+    housing(sc, 16, 204, 336, 104)
+    sc.vgrad(30, 218, 338, 294, "#4A1014", "#1E0507", CAP_R)
+    sc.glow_rect(30, 218, 338, 294, RED, 140, ring=True)
+    sc.line([(30 + CAP_R, 219), (338 - CAP_R, 219)], "#8A3A3E", 1)
+    sc.text(184, 248, "HOLD TO ERASE", font(MONT, 20), "#F0C8C8", "mm")
+    sc.text(184, 274, f"ARMING {int(progress * 100)}%", font(MONT, 14), "#E8A0A0", "mm")
+    key(sc, 16, 320, 104, 114, "◀", BLUE, sub="PREV", big=True)
+    key(sc, 132, 320, 104, 114, "MAIN", TEXT, sub="EXIT")
+    key(sc, 248, 320, 104, 114, "▶", BLUE, sub="NEXT", big=True)
     return sc
 
 
@@ -523,11 +523,11 @@ def callsign_screen(cs="TK-421", sel=3):
         if i == sel:
             sc.d.polygon(sc.b(x + dw / 2 - 6, 158, x + dw / 2 + 6, 158, x + dw / 2, 150), fill=AMBER)
     sc.text(184, 174, cs, font(AURENG, 20), RED, "mm")
-    key(sc, 16, 196, 160, 104, "▲", AMBER, sub="NEXT CHAR", big=True)
-    key(sc, 192, 196, 160, 104, "▼", AMBER, sub="PREV CHAR", big=True)
-    key(sc, 16, 312, 104, 104, "◀", BLUE, sub="POSITION", big=True)
-    key(sc, 132, 312, 104, 104, "SAVE", GREEN, lit=True, sub="COMMIT")
-    key(sc, 248, 312, 104, 104, "▶", BLUE, sub="POSITION", big=True)
+    key(sc, 16, 204, 160, 104, "▲", AMBER, sub="NEXT CHAR", big=True)
+    key(sc, 192, 204, 160, 104, "▼", AMBER, sub="PREV CHAR", big=True)
+    key(sc, 16, 320, 104, 114, "◀", BLUE, sub="POSITION", big=True)
+    key(sc, 132, 320, 104, 114, "SAVE", GREEN, lit=True, sub="COMMIT")
+    key(sc, 248, 320, 104, 114, "▶", BLUE, sub="POSITION", big=True)
     return sc
 
 
