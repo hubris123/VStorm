@@ -32,7 +32,7 @@ def wells(sc, x, y, w, h):
     sc.d.rounded_rectangle(sc.b(x + 11, y + 11, x + w - 11, y + h - 11), radius=m.CAP_R * S, fill="#07090B")
 
 
-def scomp_socket(sc, cx=290, cy=m.SCOMP_CY):
+def scomp_socket(sc, cx=m.SCOMP_CX, cy=m.SCOMP_CY):
     sc.d.ellipse(sc.b(cx - 52, cy - 52, cx + 52, cy + 52), outline="#22272B", width=2 * S)
     for k in range(24):
         a = math.radians(k * 15)

@@ -222,6 +222,10 @@ LAMP_LAYOUT = [(0, 0, 80, 14, False), (0, 29, 32, 14, False), (42, 22, 28, 28, T
 LAMP_ROWS = (7, 36, 65, 94)
 CLUSTER_Y = 196          # cluster spans 196-304: even gaps to the scope (179) and the keys (320)
 SCOMP_CY = 250           # Scomp link centred on the cluster
+# middle row: each item centred over the key below it (key centres x 68 / 184 / 300)
+CLUSTER_X = 28           # 80 px wide cluster centred on x 68 (LOCK)
+TICK_X = 184             # readout lines centred on x 184 (SYS)
+SCOMP_CX = 300           # Scomp link centred on x 300 (LIVE); socket ring 104 px = key width
 
 
 def lamps(sc, x, y, states, opas=None):
@@ -329,11 +333,11 @@ class Ticker:
         self.lines[i] = self.rnd.choice([w for w in TICK_WORDS if w not in self.lines])
 
 
-def ticker(sc, x, y, tk, f, col, rows=None):
+def ticker(sc, x, y, tk, f, col, rows=None, anchor="lm"):
     """rows: y centres to sit each line on (aligned to the lamp rows); else 22 px pitch from y."""
     for i, w in enumerate(tk.lines):
         if rows:
-            sc.text(x, rows[i], w, f, col, "lm")
+            sc.text(x, rows[i], w, f, col, anchor)
         else:
             sc.text(x, y + i * 22, w, f, col)
 
@@ -352,10 +356,10 @@ def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=N
     small_lamp(sc, 316, 22, "CLIP", False)
     scope(sc, 18, 62, 288, 176, BLUE, wave or voice_wave(60, 3, t), frame_col=frame_col)
     seg_meter(sc, 306, 178, level)
-    lamps(sc, 24, CLUSTER_Y, lamp_states or ["blue", "grey", "orange", "grey", "red", "blue", "orange"], lamp_opas)
-    ticker(sc, 118, 0, tk or Ticker(4, 1), font(AUREB, 13), mix(AMBER, "#000000", 0.35),
-           [CLUSTER_Y + r for r in LAMP_ROWS])
-    scomp(sc, 290, SCOMP_CY, 46, t / 8, rot)
+    lamps(sc, CLUSTER_X, CLUSTER_Y, lamp_states or ["blue", "grey", "orange", "grey", "red", "blue", "orange"], lamp_opas)
+    ticker(sc, TICK_X, 0, tk or Ticker(4, 1), font(AUREB, 13), mix(AMBER, "#000000", 0.35),
+           [CLUSTER_Y + r for r in LAMP_ROWS], "mm")
+    scomp(sc, SCOMP_CX, SCOMP_CY, 46, t / 8, rot)
     guarded_toggle(sc, 16, 320, 104, 114, cover_open)
     key(sc, 132, 320, 104, 114, "SYS", BLUE, sub="SETTINGS")
     if live:
@@ -371,8 +375,8 @@ def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=N
 MAIN_LIVE = [
     ("callsign", 44, 14, 210, 46), ("TX lamp", 251, 21, 267, 37), ("CLIP lamp", 315, 21, 331, 37),
     ("scope trace", 19, 63, 287, 175), ("scope frame (keyed colour)", 13, 57, 293, 181),
-    ("level meter", 305, 44, 343, 179), ("lamp cluster", 23, 195, 105, 305),
-    ("readout text", 116, 194, 238, 300), ("Scomp rings", 245, 205, 335, 295),
+    ("level meter", 305, 44, 343, 179), ("lamp cluster", 27, 195, 109, 305),
+    ("readout text", 130, 194, 238, 300), ("Scomp rings", 255, 205, 345, 295),
     ("lock cover + switch", 28, 326, 108, 420), ("SYS cap", 142, 330, 226, 424),
     ("LIVE/MUTED cap", 258, 330, 342, 424),
 ]
@@ -386,11 +390,11 @@ def main_background():
     scope(sc, 18, 62, 288, 176, BLUE, [], trace=False, frame_col=None)
     for i in range(12):                                     # unlit meter wells
         sc.rect(306, 178 - i * 11 - 8, 342, 178 - i * 11, fill="#07090B")
-    sc.d.ellipse(sc.b(290 - 52, SCOMP_CY - 52, 290 + 52, SCOMP_CY + 52), outline="#22272B", width=2 * S)
+    sc.d.ellipse(sc.b(SCOMP_CX - 52, SCOMP_CY - 52, SCOMP_CX + 52, SCOMP_CY + 52), outline="#22272B", width=2 * S)
     for k in range(24):
         a = math.radians(k * 15)
-        sc.line([(290 + 47 * math.cos(a), SCOMP_CY + 47 * math.sin(a)),
-                 (290 + 51 * math.cos(a), SCOMP_CY + 51 * math.sin(a))], "#2E3438", 1)
+        sc.line([(SCOMP_CX + 47 * math.cos(a), SCOMP_CY + 47 * math.sin(a)),
+                 (SCOMP_CX + 51 * math.cos(a), SCOMP_CY + 51 * math.sin(a))], "#2E3438", 1)
     for x in (16, 132, 248):                                # key housings with empty cap wells
         housing(sc, x, 320, 104, 114)
         sc.d.rounded_rectangle(sc.b(x + 11, 331, x + 93, 423), radius=CAP_R * S, fill="#07090B")
@@ -419,10 +423,10 @@ def lock_screen():
     small_lamp(sc, 316, 22, "CLIP", False, f=font(AUREB, 12))
     scope(sc, 18, 62, 288, 176, RED, voice_wave(60, 5))
     seg_meter(sc, 306, 178, 55)
-    lamps(sc, 24, CLUSTER_Y, ["red", "grey", "blue", "orange", "grey", "red", "blue"])
-    ticker(sc, 118, 0, Ticker(4, 9), font(AUREB, 13), mix(AMBER, "#000000", 0.35),
-           [CLUSTER_Y + r for r in LAMP_ROWS])
-    scomp(sc, 290, SCOMP_CY, 46, 2.3)
+    lamps(sc, CLUSTER_X, CLUSTER_Y, ["red", "grey", "blue", "orange", "grey", "red", "blue"])
+    ticker(sc, TICK_X, 0, Ticker(4, 9), font(AUREB, 13), mix(AMBER, "#000000", 0.35),
+           [CLUSTER_Y + r for r in LAMP_ROWS], "mm")
+    scomp(sc, SCOMP_CX, SCOMP_CY, 46, 2.3)
     # control positions become read-only plates
     housing(sc, 16, 320, 104, 114)
     sc.text(68, 361, "LOCKED", font(AUREB, 15), RED, "mm")
