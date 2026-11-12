@@ -18,6 +18,7 @@ typedef struct {
     uint8_t tilt_quiet;  /* hide tilt lines while voice is on  */
     uint8_t show_temp;   /* secret temp readout on readout line 1 */
     uint8_t temp_f;      /* 1 = Fahrenheit, 0 = Celsius        */
+    uint8_t skin;        /* active skin (0 = built-in default) */
 } ui_settings_t;
 
 /* platform hooks */
@@ -36,7 +37,7 @@ bool audio_is_keyed(void);                       /* VOX gate open (incl. hang/cl
 
 /* skin (static background layer, RGB565 368x448) + fonts */
 extern const uint8_t skin_main_px[], skin_lock_px[], skin_settings_value_px[],
-                     skin_settings_wide_px[], skin_callsign_px[], skin_settings_sensors_px[];
+                     skin_settings_wide_px[], skin_callsign_px[], skin_settings_sensors_px[], skin_settings_skin_px[];
 extern const uint8_t aurebesh_ttf_start[];
 extern const unsigned aurebesh_ttf_len;
 extern const uint8_t aureng_ttf_start[];

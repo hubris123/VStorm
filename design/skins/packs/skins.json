@@ -1,0 +1,1354 @@
+[
+ {
+  "id": 0,
+  "name": "Imperial Standard",
+  "palette": {
+   "frame": "#8A8A8A",
+   "grid": "#1E2429",
+   "trace": "#459FC2",
+   "accent": "#C4262E",
+   "text": "#C9CDD0",
+   "tick": "#916B19",
+   "lamps": [
+    "#979B9A",
+    "#BF5B16",
+    "#D00A1B",
+    "#459FC2"
+   ],
+   "key": "#459FC2",
+   "hex": "#E0A526"
+  },
+  "frame": "notched",
+  "lamps": "grid",
+  "rotor": "scomp",
+  "keys": "bevel",
+  "seed": 3,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    288,
+    176
+   ],
+   "batt": [
+    "v",
+    346,
+    49,
+    178,
+    8
+   ],
+   "lamps": [
+    68,
+    250
+   ],
+   "readout": [
+    184,
+    246,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    250,
+    46
+   ],
+   "meter": [
+    "vseg",
+    306,
+    49,
+    178,
+    36,
+    12
+   ]
+  }
+ },
+ {
+  "id": 1,
+  "name": "Targeting Computer",
+  "palette": {
+   "frame": "#7A1A1A",
+   "grid": "#2A0C0C",
+   "trace": "#E0402E",
+   "accent": "#E0402E",
+   "text": "#E8B0A0",
+   "tick": "#9A4A20",
+   "lamps": [
+    "#7A1A1A",
+    "#E0A526",
+    "#E0402E",
+    "#5A2020"
+   ],
+   "key": "#E0A526",
+   "hex": "#E0A526"
+  },
+  "frame": "notched",
+  "lamps": "domes",
+  "rotor": "reticle",
+  "keys": "flat",
+  "seed": 7,
+  "geom": {
+   "scope": [
+    "round",
+    184,
+    122,
+    66,
+    0
+   ],
+   "batt": [
+    "v",
+    340,
+    60,
+    196,
+    10
+   ],
+   "lamps": [
+    68,
+    258
+   ],
+   "readout": [
+    184,
+    258,
+    3,
+    30
+   ],
+   "rotor": [
+    300,
+    258,
+    46
+   ],
+   "meter": [
+    "dots",
+    34,
+    56,
+    196,
+    11,
+    0
+   ]
+  }
+ },
+ {
+  "id": 2,
+  "name": "Death Star Corridor",
+  "palette": {
+   "frame": "#6C7A88",
+   "grid": "#18212A",
+   "trace": "#5FC8E8",
+   "accent": "#C4262E",
+   "text": "#D0DCE6",
+   "tick": "#4F7F99",
+   "lamps": [
+    "#C9D3DC",
+    "#5FC8E8",
+    "#C4262E",
+    "#3C8A44"
+   ],
+   "key": "#5FC8E8",
+   "hex": "#5FC8E8"
+  },
+  "frame": "brackets",
+  "lamps": "switcher",
+  "rotor": "scomp",
+  "keys": "bevel",
+  "seed": 14,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    288,
+    176
+   ],
+   "batt": [
+    "v",
+    346,
+    49,
+    178,
+    8
+   ],
+   "lamps": [
+    68,
+    250
+   ],
+   "readout": [
+    184,
+    246,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    250,
+    46
+   ],
+   "meter": [
+    "vseg",
+    306,
+    49,
+    178,
+    36,
+    12
+   ],
+   "switcher": [
+    8,
+    5
+   ]
+  }
+ },
+ {
+  "id": 3,
+  "name": "Bridge Phosphor",
+  "palette": {
+   "frame": "#2F6B3A",
+   "grid": "#0E2414",
+   "trace": "#6CE07A",
+   "accent": "#E0A526",
+   "text": "#B8E8C0",
+   "tick": "#3F8F4A",
+   "lamps": [
+    "#6CE07A",
+    "#2F6B3A",
+    "#E0A526",
+    "#C4262E"
+   ],
+   "key": "#6CE07A",
+   "hex": "#6CE07A"
+  },
+  "frame": "ticks",
+  "lamps": "matrix",
+  "rotor": "radar",
+  "keys": "strip",
+  "seed": 21,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    350,
+    156
+   ],
+   "meter": [
+    "hseg",
+    18,
+    350,
+    170,
+    10,
+    24
+   ],
+   "batt": [
+    "h",
+    18,
+    350,
+    186,
+    5
+   ],
+   "lamps": [
+    68,
+    252
+   ],
+   "readout": [
+    184,
+    248,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    252,
+    46
+   ]
+  }
+ },
+ {
+  "id": 4,
+  "name": "ISB Terminal",
+  "palette": {
+   "frame": "#5E7470",
+   "grid": "#142320",
+   "trace": "#7FB8A8",
+   "accent": "#D8742A",
+   "text": "#C8D8D4",
+   "tick": "#7A6040",
+   "lamps": [
+    "#7FB8A8",
+    "#D8742A",
+    "#4A5C58",
+    "#C8D8D4"
+   ],
+   "key": "#7FB8A8",
+   "hex": "#7FB8A8"
+  },
+  "frame": "double",
+  "lamps": "pills",
+  "rotor": "square",
+  "keys": "flat",
+  "seed": 28,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    288,
+    176
+   ],
+   "batt": [
+    "v",
+    346,
+    49,
+    178,
+    8
+   ],
+   "lamps": [
+    68,
+    250
+   ],
+   "readout": [
+    184,
+    246,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    250,
+    46
+   ],
+   "meter": [
+    "twin",
+    306,
+    49,
+    178,
+    0,
+    0
+   ]
+  }
+ },
+ {
+  "id": 5,
+  "name": "Amber CRT",
+  "palette": {
+   "frame": "#8A6418",
+   "grid": "#231A06",
+   "trace": "#F0B030",
+   "accent": "#F0B030",
+   "text": "#F0D090",
+   "tick": "#9A7020",
+   "lamps": [
+    "#F0B030",
+    "#8A6418",
+    "#C46A10",
+    "#4A3810"
+   ],
+   "key": "#F0B030",
+   "hex": "#F0B030"
+  },
+  "frame": "dashed",
+  "lamps": "domes",
+  "rotor": "reticle",
+  "keys": "ring",
+  "seed": 35,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    350,
+    156
+   ],
+   "meter": [
+    "hseg",
+    18,
+    350,
+    170,
+    10,
+    24
+   ],
+   "batt": [
+    "h",
+    18,
+    350,
+    186,
+    5
+   ],
+   "lamps": [
+    68,
+    252
+   ],
+   "readout": [
+    184,
+    248,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    252,
+    46
+   ]
+  }
+ },
+ {
+  "id": 6,
+  "name": "Royal Guard",
+  "palette": {
+   "frame": "#6E1418",
+   "grid": "#200608",
+   "trace": "#E04040",
+   "accent": "#E04040",
+   "text": "#E8C8C8",
+   "tick": "#8A3030",
+   "lamps": [
+    "#B01820",
+    "#6E1418",
+    "#E8E8E8",
+    "#3A1012"
+   ],
+   "key": "#E8C8C8",
+   "hex": "#E8C8C8"
+  },
+  "frame": "notched",
+  "lamps": "diamonds",
+  "rotor": "gear",
+  "keys": "pill",
+  "seed": 42,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    288,
+    176
+   ],
+   "batt": [
+    "v",
+    346,
+    49,
+    178,
+    8
+   ],
+   "lamps": [
+    68,
+    250
+   ],
+   "readout": [
+    184,
+    246,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    250,
+    46
+   ],
+   "meter": [
+    "vseg",
+    306,
+    49,
+    178,
+    36,
+    12
+   ]
+  }
+ },
+ {
+  "id": 7,
+  "name": "Stealth Ops",
+  "palette": {
+   "frame": "#3A3F44",
+   "grid": "#111417",
+   "trace": "#5A6A78",
+   "accent": "#8A2A2E",
+   "text": "#8A9298",
+   "tick": "#4A4A3A",
+   "lamps": [
+    "#3A3F44",
+    "#5A6A78",
+    "#8A2A2E",
+    "#2A2F34"
+   ],
+   "key": "#5A6A78",
+   "hex": "#5A6A78"
+  },
+  "frame": "brackets",
+  "lamps": "matrix",
+  "rotor": "scomp",
+  "keys": "flat",
+  "seed": 49,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    288,
+    176
+   ],
+   "batt": [
+    "v",
+    346,
+    49,
+    178,
+    8
+   ],
+   "lamps": [
+    68,
+    250
+   ],
+   "readout": [
+    184,
+    246,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    250,
+    46
+   ],
+   "meter": [
+    "dots",
+    322,
+    46,
+    180,
+    11,
+    0
+   ]
+  }
+ },
+ {
+  "id": 8,
+  "name": "TIE Cockpit",
+  "palette": {
+   "frame": "#4A5A70",
+   "grid": "#121A24",
+   "trace": "#9FB7D8",
+   "accent": "#C8D4E4",
+   "text": "#C8D4E4",
+   "tick": "#5A6A88",
+   "lamps": [
+    "#9FB7D8",
+    "#4A5A70",
+    "#C8D4E4",
+    "#D00A1B"
+   ],
+   "key": "#9FB7D8",
+   "hex": "#9FB7D8"
+  },
+  "frame": "notched",
+  "lamps": "domes",
+  "rotor": "twin",
+  "keys": "strip",
+  "seed": 56,
+  "geom": {
+   "scope": [
+    "round",
+    184,
+    122,
+    66,
+    0
+   ],
+   "batt": [
+    "v",
+    340,
+    60,
+    196,
+    10
+   ],
+   "lamps": [
+    68,
+    258
+   ],
+   "readout": [
+    184,
+    258,
+    3,
+    30
+   ],
+   "rotor": [
+    300,
+    258,
+    46
+   ],
+   "meter": [
+    "dots",
+    34,
+    56,
+    196,
+    11,
+    0
+   ]
+  }
+ },
+ {
+  "id": 9,
+  "name": "Vector Briefing",
+  "palette": {
+   "frame": "#B0B0B0",
+   "grid": "#262626",
+   "trace": "#E8E8E8",
+   "accent": "#C4262E",
+   "text": "#D8D8D8",
+   "tick": "#6A6A6A",
+   "lamps": [
+    "#E8E8E8",
+    "#8A8A8A",
+    "#4A4A4A",
+    "#C4262E"
+   ],
+   "key": "#D8D8D8",
+   "hex": "#D8D8D8"
+  },
+  "frame": "notched",
+  "lamps": "matrix",
+  "rotor": "reticle",
+  "keys": "flat",
+  "seed": 63,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    350,
+    156
+   ],
+   "meter": [
+    "hseg",
+    18,
+    350,
+    170,
+    10,
+    24
+   ],
+   "batt": [
+    "h",
+    18,
+    350,
+    186,
+    5
+   ],
+   "lamps": [
+    68,
+    252
+   ],
+   "readout": [
+    184,
+    248,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    252,
+    46
+   ]
+  }
+ },
+ {
+  "id": 10,
+  "name": "Switcher Panel",
+  "palette": {
+   "frame": "#8A8A8A",
+   "grid": "#1E2429",
+   "trace": "#459FC2",
+   "accent": "#C4262E",
+   "text": "#C9CDD0",
+   "tick": "#916B19",
+   "lamps": [
+    "#979B9A",
+    "#BF5B16",
+    "#D00A1B",
+    "#459FC2"
+   ],
+   "key": "#459FC2",
+   "hex": "#E0A526"
+  },
+  "frame": "notched",
+  "lamps": "switcher",
+  "rotor": "gear",
+  "keys": "bevel",
+  "seed": 70,
+  "geom": {
+   "scope": [
+    "rect",
+    166,
+    66,
+    350,
+    190
+   ],
+   "meter": [
+    "arc",
+    184,
+    282,
+    44,
+    0,
+    0
+   ],
+   "batt": [
+    "h",
+    166,
+    350,
+    199,
+    5
+   ],
+   "lamps": [
+    84,
+    256
+   ],
+   "readout": [
+    300,
+    260,
+    3,
+    26
+   ],
+   "rotor": [
+    84,
+    128,
+    62
+   ],
+   "switcher": [
+    6,
+    4
+   ]
+  }
+ },
+ {
+  "id": 11,
+  "name": "Detention Block",
+  "palette": {
+   "frame": "#7A1A1A",
+   "grid": "#2A0C0C",
+   "trace": "#E0402E",
+   "accent": "#E0402E",
+   "text": "#E8B0A0",
+   "tick": "#9A4A20",
+   "lamps": [
+    "#7A1A1A",
+    "#E0A526",
+    "#E0402E",
+    "#5A2020"
+   ],
+   "key": "#E0A526",
+   "hex": "#E0A526"
+  },
+  "frame": "double",
+  "lamps": "pills",
+  "rotor": "square",
+  "keys": "bevel",
+  "seed": 77,
+  "geom": {
+   "scope": [
+    "rect",
+    76,
+    62,
+    350,
+    176
+   ],
+   "batt": [
+    "v",
+    50,
+    49,
+    178,
+    8
+   ],
+   "lamps": [
+    300,
+    250
+   ],
+   "readout": [
+    184,
+    246,
+    4,
+    29
+   ],
+   "rotor": [
+    68,
+    250,
+    46
+   ],
+   "meter": [
+    "vseg",
+    18,
+    49,
+    178,
+    24,
+    12
+   ]
+  }
+ },
+ {
+  "id": 12,
+  "name": "Hangar Control",
+  "palette": {
+   "frame": "#6C7A88",
+   "grid": "#18212A",
+   "trace": "#5FC8E8",
+   "accent": "#C4262E",
+   "text": "#D0DCE6",
+   "tick": "#4F7F99",
+   "lamps": [
+    "#C9D3DC",
+    "#5FC8E8",
+    "#C4262E",
+    "#3C8A44"
+   ],
+   "key": "#5FC8E8",
+   "hex": "#5FC8E8"
+  },
+  "frame": "ticks",
+  "lamps": "domes",
+  "rotor": "radar",
+  "keys": "ring",
+  "seed": 84,
+  "geom": {
+   "scope": [
+    "rect",
+    166,
+    66,
+    350,
+    190
+   ],
+   "meter": [
+    "arc",
+    184,
+    282,
+    44,
+    0,
+    0
+   ],
+   "batt": [
+    "h",
+    166,
+    350,
+    199,
+    5
+   ],
+   "lamps": [
+    84,
+    252
+   ],
+   "readout": [
+    300,
+    260,
+    3,
+    26
+   ],
+   "rotor": [
+    84,
+    128,
+    62
+   ]
+  }
+ },
+ {
+  "id": 13,
+  "name": "Retro Ops",
+  "palette": {
+   "frame": "#3F8F9A",
+   "grid": "#0C2226",
+   "trace": "#4FD1D9",
+   "accent": "#F07A2A",
+   "text": "#BFEFF2",
+   "tick": "#2F7F88",
+   "lamps": [
+    "#4FD1D9",
+    "#F07A2A",
+    "#F0C040",
+    "#2A4F55"
+   ],
+   "key": "#4FD1D9",
+   "hex": "#4FD1D9"
+  },
+  "frame": "brackets",
+  "lamps": "diamonds",
+  "rotor": "twin",
+  "keys": "strip",
+  "seed": 91,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    350,
+    156
+   ],
+   "meter": [
+    "hseg",
+    18,
+    350,
+    170,
+    10,
+    24
+   ],
+   "batt": [
+    "h",
+    18,
+    350,
+    186,
+    5
+   ],
+   "lamps": [
+    68,
+    252
+   ],
+   "readout": [
+    184,
+    248,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    252,
+    46
+   ]
+  }
+ },
+ {
+  "id": 14,
+  "name": "Comms Relay",
+  "palette": {
+   "frame": "#8A8A8A",
+   "grid": "#1E2429",
+   "trace": "#459FC2",
+   "accent": "#C4262E",
+   "text": "#C9CDD0",
+   "tick": "#916B19",
+   "lamps": [
+    "#979B9A",
+    "#BF5B16",
+    "#D00A1B",
+    "#459FC2"
+   ],
+   "key": "#459FC2",
+   "hex": "#E0A526"
+  },
+  "frame": "dashed",
+  "lamps": "pills",
+  "rotor": "radar",
+  "keys": "bevel",
+  "seed": 98,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    350,
+    156
+   ],
+   "meter": [
+    "hseg",
+    18,
+    350,
+    170,
+    10,
+    24
+   ],
+   "batt": [
+    "h",
+    18,
+    350,
+    186,
+    5
+   ],
+   "lamps": [
+    68,
+    252
+   ],
+   "readout": [
+    184,
+    248,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    252,
+    46
+   ]
+  }
+ },
+ {
+  "id": 15,
+  "name": "Star Destroyer Command",
+  "palette": {
+   "frame": "#707880",
+   "grid": "#181C20",
+   "trace": "#C8CED4",
+   "accent": "#E07A1A",
+   "text": "#D8DCE0",
+   "tick": "#8A6A40",
+   "lamps": [
+    "#C8CED4",
+    "#E07A1A",
+    "#707880",
+    "#C4262E"
+   ],
+   "key": "#E07A1A",
+   "hex": "#E07A1A"
+  },
+  "frame": "double",
+  "lamps": "matrix",
+  "rotor": "gear",
+  "keys": "flat",
+  "seed": 105,
+  "geom": {
+   "scope": [
+    "rect",
+    166,
+    66,
+    350,
+    190
+   ],
+   "meter": [
+    "arc",
+    184,
+    282,
+    44,
+    0,
+    0
+   ],
+   "batt": [
+    "h",
+    166,
+    350,
+    199,
+    5
+   ],
+   "lamps": [
+    84,
+    252
+   ],
+   "readout": [
+    300,
+    260,
+    3,
+    26
+   ],
+   "rotor": [
+    84,
+    128,
+    62
+   ]
+  }
+ },
+ {
+  "id": 16,
+  "name": "Security Checkpoint",
+  "palette": {
+   "frame": "#8A6418",
+   "grid": "#231A06",
+   "trace": "#F0B030",
+   "accent": "#F0B030",
+   "text": "#F0D090",
+   "tick": "#9A7020",
+   "lamps": [
+    "#F0B030",
+    "#8A6418",
+    "#C46A10",
+    "#4A3810"
+   ],
+   "key": "#F0B030",
+   "hex": "#F0B030"
+  },
+  "frame": "notched",
+  "lamps": "pills",
+  "rotor": "square",
+  "keys": "bevel",
+  "seed": 112,
+  "geom": {
+   "scope": [
+    "round",
+    184,
+    122,
+    66,
+    0
+   ],
+   "batt": [
+    "v",
+    340,
+    60,
+    196,
+    10
+   ],
+   "lamps": [
+    68,
+    258
+   ],
+   "readout": [
+    184,
+    258,
+    3,
+    30
+   ],
+   "rotor": [
+    300,
+    258,
+    46
+   ],
+   "meter": [
+    "vseg",
+    18,
+    60,
+    196,
+    26,
+    12
+   ]
+  }
+ },
+ {
+  "id": 17,
+  "name": "Probe Droid",
+  "palette": {
+   "frame": "#6E1418",
+   "grid": "#200608",
+   "trace": "#E04040",
+   "accent": "#E04040",
+   "text": "#E8C8C8",
+   "tick": "#8A3030",
+   "lamps": [
+    "#B01820",
+    "#6E1418",
+    "#E8E8E8",
+    "#3A1012"
+   ],
+   "key": "#E8C8C8",
+   "hex": "#E8C8C8"
+  },
+  "frame": "brackets",
+  "lamps": "domes",
+  "rotor": "reticle",
+  "keys": "ring",
+  "seed": 119,
+  "geom": {
+   "scope": [
+    "rect",
+    166,
+    66,
+    350,
+    190
+   ],
+   "meter": [
+    "arc",
+    184,
+    282,
+    44,
+    0,
+    0
+   ],
+   "batt": [
+    "h",
+    166,
+    350,
+    199,
+    5
+   ],
+   "lamps": [
+    84,
+    252
+   ],
+   "readout": [
+    300,
+    260,
+    3,
+    26
+   ],
+   "rotor": [
+    84,
+    128,
+    62
+   ]
+  }
+ },
+ {
+  "id": 18,
+  "name": "Lambda Shuttle",
+  "palette": {
+   "frame": "#B0B0B0",
+   "grid": "#262626",
+   "trace": "#E8E8E8",
+   "accent": "#C4262E",
+   "text": "#D8D8D8",
+   "tick": "#6A6A6A",
+   "lamps": [
+    "#E8E8E8",
+    "#8A8A8A",
+    "#4A4A4A",
+    "#C4262E"
+   ],
+   "key": "#D8D8D8",
+   "hex": "#D8D8D8"
+  },
+  "frame": "double",
+  "lamps": "grid",
+  "rotor": "gear",
+  "keys": "pill",
+  "seed": 126,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    288,
+    176
+   ],
+   "batt": [
+    "v",
+    346,
+    49,
+    178,
+    8
+   ],
+   "lamps": [
+    68,
+    250
+   ],
+   "readout": [
+    184,
+    246,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    250,
+    46
+   ],
+   "meter": [
+    "vseg",
+    306,
+    49,
+    178,
+    36,
+    12
+   ]
+  }
+ },
+ {
+  "id": 19,
+  "name": "Scarif Vault",
+  "palette": {
+   "frame": "#3C7A80",
+   "grid": "#0E2022",
+   "trace": "#58D0C0",
+   "accent": "#E0A526",
+   "text": "#B8E0DC",
+   "tick": "#3C7A70",
+   "lamps": [
+    "#58D0C0",
+    "#E0A526",
+    "#3C7A80",
+    "#C9D3DC"
+   ],
+   "key": "#58D0C0",
+   "hex": "#58D0C0"
+  },
+  "frame": "ticks",
+  "lamps": "matrix",
+  "rotor": "scomp",
+  "keys": "strip",
+  "seed": 133,
+  "geom": {
+   "scope": [
+    "rect",
+    76,
+    62,
+    350,
+    176
+   ],
+   "batt": [
+    "v",
+    50,
+    49,
+    178,
+    8
+   ],
+   "lamps": [
+    300,
+    250
+   ],
+   "readout": [
+    184,
+    246,
+    4,
+    29
+   ],
+   "rotor": [
+    68,
+    250,
+    46
+   ],
+   "meter": [
+    "twin",
+    18,
+    49,
+    178,
+    0,
+    0
+   ]
+  }
+ },
+ {
+  "id": 20,
+  "name": "Interrogator",
+  "palette": {
+   "frame": "#7A1A1A",
+   "grid": "#2A0C0C",
+   "trace": "#E0402E",
+   "accent": "#E0402E",
+   "text": "#E8B0A0",
+   "tick": "#9A4A20",
+   "lamps": [
+    "#7A1A1A",
+    "#E0A526",
+    "#E0402E",
+    "#5A2020"
+   ],
+   "key": "#E0A526",
+   "hex": "#E0A526"
+  },
+  "frame": "brackets",
+  "lamps": "diamonds",
+  "rotor": "radar",
+  "keys": "flat",
+  "seed": 140,
+  "geom": {
+   "scope": [
+    "rect",
+    18,
+    62,
+    288,
+    176
+   ],
+   "batt": [
+    "v",
+    346,
+    49,
+    178,
+    8
+   ],
+   "lamps": [
+    68,
+    250
+   ],
+   "readout": [
+    184,
+    246,
+    4,
+    29
+   ],
+   "rotor": [
+    300,
+    250,
+    46
+   ],
+   "meter": [
+    "dots",
+    322,
+    46,
+    180,
+    11,
+    0
+   ]
+  }
+ }
+]

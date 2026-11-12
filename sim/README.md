@@ -64,6 +64,20 @@ This is the loop for UI work: edit `ui.c` → `build.sh` → run a script → lo
   at the browser's rate (shown under Readouts).
 - Hosted (claude.ai) copies can't use the microphone or save WAVs; run it locally for those.
 
+## Skins
+
+`design/skins/concepts/make_concepts.py` is the single source for every skin: it draws the
+mock-ups and exports `design/skins/packs/` (`skins.json` recipes + per-skin background layers
++ carousel thumbnails). `sim/tools/gen_skins.py` turns that into `skins_gen.c` at build time
+(lossless RLE backgrounds). The UI code (`ui_imperial.c`) builds the live widgets from the
+recipe: scope (rect / round, 5 frame styles), meter (segments, dots, twin, horizontal, arc
+gauge), lamps (cluster, switcher bank, domes, pills, diamonds, matrix), rotor (Scomp,
+reticle, square brackets, twin, radar, cog) and key style (bevel, flat, strip, ring, pill).
+Settings page 11 (SKIN) switches between them. On the product the same recipes + art come
+from signed `.vskin` files on the SD card (`docs/PRODUCT-NOTES.md`).
+
+To add a skin: add an entry to `CONCEPTS` in `make_concepts.py`, run it, rebuild.
+
 ## Moving the Imperial UI into firmware3 (later)
 
 `ui_imperial.c` only uses LVGL 8.4, `esp_random()`, firmware3's `audio.h` and the hooks in

@@ -17,7 +17,7 @@ case "$TARGET" in
   fw1) FW=$FW1;               DEFS=(-DSIM_DEFAULT_W=320 -DSIM_DEFAULT_H=172 -DSIM_LV_MEM_KB=64);;
   # firmware3 uses LV_MEM_CUSTOM (system heap), so give LVGL a roomy pool
   fw3) FW=$SIM/../firmware3/main; DEFS=(-DSIM_DEFAULT_W=368 -DSIM_DEFAULT_H=448 -DSIM_LV_MEM_KB=256);;
-  fw3i) FW=$SIM/ui_imperial;      DEFS=(-DSIM_DEFAULT_W=368 -DSIM_DEFAULT_H=448 -DSIM_LV_MEM_KB=512);;
+  fw3i) FW=$SIM/ui_imperial;      DEFS=(-DSIM_DEFAULT_W=368 -DSIM_DEFAULT_H=448 -DSIM_LV_MEM_KB=2048);;
   *) echo "unknown target $TARGET (fw1|fw3|all)"; exit 1;;
 esac
 mkdir -p "$DEPS" "$OUT"
@@ -78,7 +78,7 @@ with open(out, "w") as f:
         f.write(",".join(str(b) for b in data))
         f.write("};\n")
     if skins:
-        for name in ("main", "lock", "settings_value", "settings_wide", "settings_sensors", "callsign"):
+        for name in ("main", "lock", "settings_value", "settings_wide", "settings_sensors", "settings_skin", "callsign"):
             w, h, bpp, rows = png_rgb(os.path.join(skins, name + ".png"))
             assert (w, h) == (368, 448), name
             px = bytearray()
@@ -98,13 +98,21 @@ CFLAGS=(--target=wasm32 -O2 -ffreestanding -nostdlib -fno-builtin -mbulk-memory
 
 # the voice DSP is firmware/main/dsp.c for both targets (firmware3/audio.c carries the same math inline)
 if [ "$TARGET" = fw3i ]; then
-  SRCS=("$FW/ui_imperial.c" "$FW1/dsp.c" "$SIM/src/sim_main.c" "$SIM/src/sim_hal_fw3.c" "$SIM/src/sim_hal_fw3i.c" "$SIM/libc/libc.c" "$OUT/sim_assets.c")
+  # skin recipes + art from design/skins/packs (regenerate those with design/skins/concepts/make_concepts.py)
+  if [ ! -f "$OUT/skins_gen.c" ] || [ -n "$(find "$SIM/../design/skins/packs" -newer "$OUT/skins_gen.c" -print -quit)" ]; then
+    python3 "$SIM/tools/gen_skins.py" "$SIM/../design/skins/packs" "$OUT/skins_gen.c"
+  fi
+  SRCS=("$FW/ui_imperial.c" "$OUT/skins_gen.c" "$FW1/dsp.c" "$SIM/src/sim_main.c" "$SIM/src/sim_hal_fw3.c" "$SIM/src/sim_hal_fw3i.c" "$SIM/libc/libc.c" "$OUT/sim_assets.c")
 else
   SRCS=("$FW/ui.c" "$FW1/dsp.c" "$SIM/src/sim_main.c" "$SIM/src/sim_hal_$TARGET.c" "$SIM/libc/libc.c" "$OUT/sim_assets.c")
 fi
 mapfile -t LV < <(find "$DEPS/lvgl/src" -name '*.c' -not -path '*/draw/nxp/*' -not -path '*/draw/renesas/*' \
                   -not -path '*/draw/stm32_dma2d/*' -not -path '*/draw/swm341_dma2d/*' -not -path '*/draw/arm2d/*' \
                   -not -path '*/draw/sdl/*' -not -path '*/gpu/*')
+
+# a change of compile settings (e.g. heap size) must rebuild everything, not just edited files
+STAMP="$OUT/flags.txt"
+if [ "$(cat "$STAMP" 2>/dev/null)" != "${CFLAGS[*]}" ]; then rm -rf "$OUT/obj"; echo "${CFLAGS[*]}" > "$STAMP"; fi
 
 OBJS=()
 for s in "${SRCS[@]}" "${LV[@]}"; do

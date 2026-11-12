@@ -52,7 +52,7 @@ def main_bg():
     sc = m.Screen()
     for x, label in ((271, "TX"), (335, "CLIP")):
         sc.text(x, 29, label, m.font(m.MONT, 13), m.LABEL, "rm")
-    m.scope(sc, 18, 62, 288, 176, m.BLUE, [], trace=False, frame_col=None)
+    m.scope(sc, 18, 62, 288, 176, m.BLUE, [], trace=False)   # idle frame in the art; keyed colour is live
     meter_wells(sc)
     scomp_socket(sc)
     m.housing(sc, 16, 320, 104, 114)                       # lock: housing + switch nut, no well
@@ -69,7 +69,7 @@ def lock_bg():
     sc = m.Screen()
     for x, label in ((271, "TX"), (335, "CLIP")):
         sc.text(x, 29, label, m.font(m.AUREB, 12), m.LABEL, "rm")
-    m.scope(sc, 18, 62, 288, 176, m.RED, [], trace=False, frame_col=None)
+    m.scope(sc, 18, 62, 288, 176, m.RED, [], trace=False)
     meter_wells(sc)
     scomp_socket(sc)
     for x in (16, 132, 248):
@@ -81,9 +81,9 @@ def lock_bg():
 
 
 def settings_common(sc, frame=True):
-    for i in range(10):                                     # page pip wells (10 settings pages)
-        x = 46 + i * 27
-        sc.rect(x, 46, x + 22, 50, fill=m.DIM)
+    for i in range(11):                                     # page pip wells (11 settings pages)
+        x = 46 + i * 25
+        sc.rect(x, 46, x + 20, 50, fill=m.DIM)
     if frame:
         m.notched_frame(sc, 16, 60, 352, 184)
     for x in (16, 132, 248):
@@ -144,7 +144,17 @@ def settings_sensors_bg():
     return sc
 
 
-SKINS = {"main": main_bg, "lock": lock_bg, "settings_value": settings_value_bg, "settings_sensors": settings_sensors_bg,
+def settings_skin_bg():
+    """SKIN page: carousel window over < SKIN | APPLY | SKIN >"""
+    sc = m.Screen()
+    settings_common(sc, frame=False)
+    m.notched_frame(sc, 16, 58, 352, 196)
+    for x in (16, 132, 248):
+        wells(sc, x, 204, 104, 104)
+    return sc
+
+
+SKINS = {"settings_skin": settings_skin_bg, "main": main_bg, "lock": lock_bg, "settings_value": settings_value_bg, "settings_sensors": settings_sensors_bg,
          "settings_wide": settings_wide_bg, "callsign": callsign_bg}
 
 

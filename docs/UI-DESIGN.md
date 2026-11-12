@@ -110,13 +110,14 @@ Interaction rules that follow:
 | Screen | Job | Main controls |
 |---|---|---|
 | **Main** | Am I live? Am I heard? | Scope + TX lamp (top), big LIVE/MUTED key, LOCK key, SETTINGS key |
-| **Settings** (paged) | Tune effect | One value per page: big name, segmented bar, − / + keys, ◀ ▶ to page. Pages (10): VOLUME, EFFECT, VOX, STATIC, CLICK, BRIGHTNESS, CALLSIGN, FACTORY RESET (red, hold 2 s), DISPLAY OFF (yellow, tap), SENSORS (3 toggles) |
+| **Settings** (paged) | Tune effect | One value per page: big name, segmented bar, − / + keys, ◀ ▶ to page. Pages (11): VOLUME, EFFECT, VOX, STATIC, CLICK, BRIGHTNESS, CALLSIGN, FACTORY RESET (red, hold 2 s), DISPLAY OFF (yellow, tap), SENSORS (toggles), SKIN (carousel) |
 | **Callsign** | Set "TK-421" | Code-cylinder: 1 character at a time, big ▲ ▼ for the character, ◀ ▶ for position, COMMIT |
 | **Battery bar** (main + lock) | Charge at a glance | Unlabelled 8 px bar right of the voice meter (x 346–354, same span y 49–178). Drains from the top; green, yellow ≤ 30 %, red ≤ 15 %. Hidden on USB with no battery. AXP2101 |
 | **Tilt lines** (scope, main + lock) | Motion, "alive" | One vertical + one horizontal line in the scope grid, `#46525A` (a shade whiter than the grid), behind the trace, gliding with roll (x) / pitch (y); ±45° reaches the edge. QMI8658 |
 | **Secret temp** (main + lock) | Only the owner knows | Readout line 1 (top, over SYS) is pinned to "TEMP" + unit in Aurebesh with the number in the callsign's TK-style digits (Aurebesh-English 20 px, sharing the Aurebesh baseline: digits and letters both 13 px tall, same pixel rows), e.g. TEMP 88 F. Board temperature from the QMI8658 (reads warmer than the air - "suit temp"). The other three lines keep changing |
 | **Sensors** (settings page 10) | Turn them on/off | Top row: TEMP on/off, C/F unit (big amber F or C, sub-label "UNIT", never lit), readings panel (PWR / TILT / TEMP). Row A: BATTERY (14 px to fit), TILT / GRID and QUIET / ONLY on two lines (toggle names 16 px) (default on: tilt lines fade out while the VOX gate is open). All keys in the bottom-row columns. Defaults: all on, °F |
 | **Sensor read rates** | Keep I2C quiet | Temperature every 30 s, battery every 10 s (cached; also read at start-up, when the Sensors page opens, and when a toggle changes). Tilt every frame (25/s) because the lines animate. Labels redraw only when the shown value changes |
+| **Skin** (settings page 11) | Pick a look | Thumbnail carousel (previous / current / next; tap a side thumbnail or use < SKIN >), skin number + name, APPLY lights green when the shown skin isn't active (ACTIVE when it is). 21 built in: Imperial Standard + the 20 concepts. A skin restyles MAIN + LOCK; settings keep the standard look |
 | **Display off** | Blank the panel, keep working | All black except one dim amber line in the middle, "TAP 5 TIMES TO WAKE DISPLAY", drifting a few px every 20 s (burn-in). 5 quick taps wake to Main. Audio and BOOT keep working |
 | **Lock** | Prop mode, ignore stray taps | Full-screen decoration (Aurebesh, lamps, live scope). Unlock: 5 rapid taps, as on the 1.47 |
 | **Confirm** | Dangerous actions | Hold-to-confirm bar |

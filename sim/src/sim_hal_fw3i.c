@@ -39,6 +39,7 @@ void ui_platform_defaults(ui_settings_t *s)
     s->tilt_quiet = 1;
     s->show_temp = 1;
     s->temp_f = 1;
+    s->skin = 0;
 }
 
 void ui_platform_load(ui_settings_t *s)

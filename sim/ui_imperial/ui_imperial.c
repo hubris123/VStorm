@@ -10,11 +10,13 @@
  * Reacts to the voice through the VOX gate (section 6a). */
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "lvgl.h"
 #include "esp_random.h"
 #include "audio.h"
 #include "ui.h"
 #include "ui_imperial.h"
+#include "skin.h"
 
 /* ---------------- palette (docs/UI-DESIGN.md section 2) ---------------- */
 #define C(hex) lv_color_hex(hex)
@@ -59,7 +61,7 @@ static lv_img_dsc_t mk_skin(const uint8_t *px)
     d.data = px;
     return d;
 }
-static lv_img_dsc_t skin_main, skin_lock, skin_set_value, skin_set_wide, skin_callsign, skin_set_sensors;
+static lv_img_dsc_t skin_main, skin_lock, skin_set_value, skin_set_wide, skin_callsign, skin_set_sensors, skin_set_skin;
 
 static lv_obj_t *make_screen(const lv_img_dsc_t *skin, lv_obj_t **bg_out)
 {
@@ -110,13 +112,29 @@ static lv_obj_t *aureb_label(lv_obj_t *p, const char *t, lv_font_t *f, lv_color_
 
 /* ---------------- key caps (the pressable part; housings are in the skin) ---------------- */
 typedef struct {
-    lv_obj_t *cap, *lbl, *sub;
+    lv_obj_t *cap, *lbl, *sub, *extra;   /* extra: strip (KEYS_STRIP) or indicator dot (KEYS_PILL) */
     lv_color_t accent;
+    uint8_t style;
 } cap_t;
+static uint8_t cap_style_mode = KEYS_BEVEL;   /* key style used by make_cap (set per skin for MAIN) */
 
 static void cap_style(cap_t *k, bool lit)
 {
     lv_obj_t *c = k->cap;
+    if (k->style == KEYS_FLAT) {                          /* outlined key, no bevel */
+        lv_obj_set_style_border_color(c, k->accent, 0);
+        lv_obj_set_style_bg_color(c, lv_color_mix(k->accent, lv_color_black(), 90), 0);
+        lv_obj_set_style_bg_grad_color(c, lv_color_mix(k->accent, lv_color_black(), 90), 0);
+        lv_obj_set_style_bg_opa(c, lit ? LV_OPA_COVER : LV_OPA_0, 0);
+        lv_obj_set_style_shadow_color(c, k->accent, 0);
+        lv_obj_set_style_shadow_width(c, lit ? 22 : 0, 0);
+        lv_obj_set_style_shadow_opa(c, LV_OPA_70, 0);
+        lv_obj_set_style_text_color(k->lbl, lit ? C(0xFFF4F0) : k->accent, 0);
+        if (k->sub) lv_obj_set_style_text_color(k->sub, COL_LABEL, 0);
+        return;
+    }
+    if (k->extra && k->style == KEYS_PILL)
+        lv_obj_set_style_bg_color(k->extra, lit ? k->accent : lv_color_mix(k->accent, lv_color_black(), 90), 0);
     if (lit) {
         lv_obj_set_style_bg_color(c, lv_color_mix(lv_color_white(), k->accent, 64), 0);
         lv_obj_set_style_bg_grad_color(c, lv_color_mix(lv_color_black(), k->accent, 64), 0);
@@ -153,11 +171,14 @@ static cap_t make_cap(lv_obj_t *scr, int hx, int hy, int hw, int hh, const char 
 {
     cap_t k = {0};
     k.accent = accent;
+    k.style = cap_style_mode;
+    bool flat = k.style == KEYS_FLAT;
+    int in = flat ? 4 : 11;                               /* flat keys have no housing in the art */
     lv_obj_t *c = lv_obj_create(scr);
     lv_obj_remove_style_all(c);
-    lv_obj_set_pos(c, hx + 11, hy + 11);
-    lv_obj_set_size(c, hw - 22, hh - 22);
-    lv_obj_set_style_radius(c, 6, 0);
+    lv_obj_set_pos(c, hx + in, hy + in);
+    lv_obj_set_size(c, hw - 2 * in, hh - 2 * in);
+    lv_obj_set_style_radius(c, flat ? 8 : 6, 0);
     lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_grad_dir(c, LV_GRAD_DIR_VER, 0);
     lv_obj_set_style_border_color(c, C(0x050607), 0);
@@ -166,8 +187,15 @@ static cap_t make_cap(lv_obj_t *scr, int hx, int hy, int hw, int hh, const char 
     lv_obj_set_style_bg_color(c, C(0x23292E), LV_STATE_PRESSED);
     lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_ext_click_area(c, 11);
+    lv_obj_set_ext_click_area(c, in);
     k.cap = c;
+    if (k.style == KEYS_STRIP) {                          /* coloured strip across the top of the cap */
+        k.extra = box(c, 2, 2, hw - 2 * in - 4, 6, accent);
+        lv_obj_set_style_radius(k.extra, 2, 0);
+    } else if (k.style == KEYS_PILL) {                    /* indicator dot under the label */
+        k.extra = box(c, (hw - 2 * in) / 2 - 8, hh - 2 * in - 14, 16, 8, accent);
+        lv_obj_set_style_radius(k.extra, LV_RADIUS_CIRCLE, 0);
+    }
     k.lbl = label(c, txt, symbol ? &lv_font_montserrat_28 : &lv_font_montserrat_18, accent);
     if (sub) {
         k.sub = label(c, sub, &lv_font_montserrat_14, COL_LABEL);
@@ -186,17 +214,15 @@ static cap_t make_cap(lv_obj_t *scr, int hx, int hy, int hw, int hh, const char 
     return k;
 }
 
-/* ================= console widgets shared by MAIN and LOCK ================= */
-#define METER_SEGS 12
-#define CLUSTER_Y 196     /* lamp cluster 196-304: even gaps to the scope frame and the keys */
-#define SCOMP_CY 250      /* Scomp link centred on the cluster */
-/* middle row: each item centred over the key below it (key centres x 68 / 184 / 300) */
-#define CLUSTER_X 28      /* 80 px wide lamp cluster over LOCK */
-#define TICK_CX 184       /* readout lines centred over SYS */
-#define SCOMP_CX 300      /* Scomp link over LIVE (socket ring = key width) */
-static const int LAMP_ROW[4] = {7, 36, 65, 94};
-#define LAMPS 7
-#define TICK_LINES 4
+/* ================= console widgets shared by MAIN and LOCK =================
+ * Everything here is driven by the active skin recipe (skin.h): which scope / meter /
+ * lamps / rotor / key style, where, and in what colours. The static art is the skin's
+ * background image; these are only the parts that move or change. */
+#define MAX_METER 24
+#define MAX_LAMPS 40
+#define MAX_TICK 4
+#define MAX_RLINE 13
+#define MAX_ARCS 10
 
 static const char *WORDS[] = {"SECTOR", "ACCESS", "SCANNER", "CHANNEL", "UPLINK", "CIPHER", "RELAY",
                               "VECTOR", "SIGNAL", "BEACON", "ORBIT", "PATROL", "DOCKING", "CLEARED",
@@ -204,26 +230,48 @@ static const char *WORDS[] = {"SECTOR", "ACCESS", "SCANNER", "CHANNEL", "UPLINK"
 #define NWORDS (sizeof(WORDS) / sizeof(WORDS[0]))
 
 typedef struct {
-    lv_obj_t *scr, *callsign, *tx, *clip, *chart, *frame;
+    const skin_desc_t *sk;
+    lv_obj_t *scr, *callsign, *tx, *clip, *chart;
     lv_chart_series_t *ser;
-    lv_obj_t *meter[METER_SEGS];
-    lv_obj_t *lamp[LAMPS];
-    uint8_t lamp_st[LAMPS];
-    uint16_t lamp_next[LAMPS];
-    lv_obj_t *tick[TICK_LINES];
-    uint8_t tick_word[TICK_LINES];
-    int tick_next;
-    lv_obj_t *ring_outer[3], *ring_inner, *ring_tip[2];
-    float ang[3], spd[3];
-    uint16_t rev_next[3];                 /* ticks until each ring reverses */
-    lv_obj_t *batt;                       /* battery bar beside the meter */
-    lv_obj_t *tilt_v, *tilt_h;            /* tilt crosshair lines in the scope */
-    float tilt_x, tilt_y, tilt_opa;
+    /* keyed frame overlay (amber = muted, red = transmitting); the idle frame is in the art */
+    lv_obj_t *fr[4];
+    int nfr;
+    lv_point_t fr_pts[4][9];
+    /* voice meter */
+    lv_obj_t *meter[MAX_METER];
+    int nmeter;
+    lv_obj_t *marc, *needle, *pivot;
+    lv_point_t needle_pts[2];
+    lv_obj_t *batt;
+    /* lamps */
+    lv_obj_t *lamp[MAX_LAMPS];
+    uint8_t lamp_st[MAX_LAMPS];
+    uint16_t lamp_next[MAX_LAMPS];
+    int nlamps;
+    bool lamp_has_off;                    /* switcher / matrix: state 0 = unlit */
+    /* readout */
+    lv_obj_t *tick[MAX_TICK];
+    uint8_t tick_word[MAX_TICK];
+    int ntick, tick_next, tick_cx, tick_y0, tick_pitch;
     lv_obj_t *t_word, *t_num, *t_unit;    /* secret temp: Aurebesh TEMP + TK-style digits + Aurebesh unit */
+    /* rotor */
+    lv_obj_t *arcs[MAX_ARCS];
+    int narcs;
+    lv_obj_t *rl[MAX_RLINE];
+    lv_point_t rl_pts[MAX_RLINE][34];
+    int nrl;
+    float ang[3], spd[3], base[3];
+    uint16_t rev_next[3];                 /* ticks until each ring reverses */
+    /* tilt crosshair */
+    lv_obj_t *tilt_v, *tilt_h;
+    float tilt_x, tilt_y, tilt_opa;
+    int tx0, ty0, tx1, ty1;               /* tilt travel area */
     int shown_batt, shown_temp;           /* what is on screen now: redraw only on change */
 } console_t;
 
 static console_t con_main, con_lock;
+
+#define CP(hex) lv_color_hex(hex)
 
 /* Callsign in the top bar: as big as fits. 42 px normally; long callsigns step down
  * (34, 26, 22) so they never run into the TX / CLIP lamps (space x 46..242). */
@@ -245,45 +293,121 @@ static void callsign_show(console_t *c)
     lv_obj_set_pos(c->callsign, 46, 31 - lv_obj_get_height(c->callsign) / 2);   /* centred in the top bar */
 }
 
-/* scope interior for the tilt lines */
-#define SCOPE_X0 21
-#define SCOPE_X1 285
-#define SCOPE_Y0 65
-#define SCOPE_Y1 173
-#define TILT_COL C(0x46525A)      /* a shade whiter than the grid (#1E2429) */
 #define TILT_RANGE 45.0f          /* degrees to reach the scope edge */
 
-static void make_chart(console_t *c, lv_color_t trace)
+static lv_obj_t *pline(lv_obj_t *p, lv_point_t *pts, int n, lv_color_t col, int w)
 {
-    c->tilt_v = box(c->scr, (SCOPE_X0 + SCOPE_X1) / 2, SCOPE_Y0, 1, SCOPE_Y1 - SCOPE_Y0, TILT_COL);
-    c->tilt_h = box(c->scr, SCOPE_X0, (SCOPE_Y0 + SCOPE_Y1) / 2, SCOPE_X1 - SCOPE_X0, 1, TILT_COL);
-    c->tilt_opa = 255;
-    lv_obj_t *ch = lv_chart_create(c->scr);
-    lv_obj_set_pos(ch, 19, 63);
-    lv_obj_set_size(ch, 269, 113);
-    lv_obj_set_style_bg_opa(ch, LV_OPA_0, 0);          /* panel + grid are in the skin */
-    lv_obj_set_style_border_width(ch, 0, 0);
-    lv_obj_set_style_radius(ch, 0, 0);
-    lv_obj_set_style_pad_all(ch, 4, 0);
-    lv_chart_set_div_line_count(ch, 0, 0);
-    lv_chart_set_type(ch, LV_CHART_TYPE_LINE);
-    lv_chart_set_point_count(ch, 60);
-    lv_chart_set_range(ch, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
-    lv_chart_set_update_mode(ch, LV_CHART_UPDATE_MODE_SHIFT);
-    lv_obj_set_style_size(ch, 0, LV_PART_INDICATOR);
-    lv_obj_set_style_line_width(ch, 2, LV_PART_ITEMS);
-    lv_obj_clear_flag(ch, LV_OBJ_FLAG_CLICKABLE);
-    c->ser = lv_chart_add_series(ch, trace, LV_CHART_AXIS_PRIMARY_Y);
-    for (int i = 0; i < 60; i++) lv_chart_set_next_value(ch, c->ser, 3);
-    c->chart = ch;
+    lv_obj_t *l = lv_line_create(p);
+    lv_line_set_points(l, pts, n);
+    lv_obj_set_style_line_width(l, w, 0);
+    lv_obj_set_style_line_color(l, col, 0);
+    lv_obj_set_pos(l, 0, 0);
+    lv_obj_clear_flag(l, LV_OBJ_FLAG_CLICKABLE);
+    return l;
+}
 
-    static lv_point_t pts[] = {{0, 12}, {12, 0}, {276, 0}, {276, 120}, {0, 120}, {0, 12}};
-    c->frame = lv_line_create(c->scr);
-    lv_line_set_points(c->frame, pts, 6);
-    lv_obj_set_style_line_width(c->frame, 2, 0);
-    lv_obj_set_style_line_color(c->frame, COL_GREY, 0);
-    lv_obj_set_pos(c->frame, 15, 59);
-    lv_obj_clear_flag(c->frame, LV_OBJ_FLAG_CLICKABLE);
+static lv_obj_t *ring(lv_obj_t *p, int cx, int cy, int r, int w, int span, lv_color_t col)
+{
+    lv_obj_t *a = lv_arc_create(p);
+    lv_obj_set_size(a, r * 2, r * 2);
+    lv_obj_set_pos(a, cx - r, cy - r);
+    lv_arc_set_bg_angles(a, 0, 0);
+    lv_obj_set_style_arc_opa(a, LV_OPA_0, LV_PART_MAIN);
+    lv_arc_set_angles(a, 0, span);
+    lv_obj_set_style_arc_width(a, w, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(a, col, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_rounded(a, false, LV_PART_INDICATOR);
+    lv_obj_remove_style(a, NULL, LV_PART_KNOB);
+    lv_obj_clear_flag(a, LV_OBJ_FLAG_CLICKABLE);
+    return a;
+}
+
+/* ---- scope: chart (trace), tilt lines, keyed frame overlay ---- */
+static void make_scope(console_t *c, lv_color_t trace)
+{
+    const skin_desc_t *k = c->sk;
+    int cx0, cy0, cw, ch;                                  /* chart box */
+    if (k->scope_round) {
+        int x = k->sc[0], y = k->sc[1], r = k->sc[2];
+        cx0 = x - r * 8 / 10; cw = r * 16 / 10;
+        cy0 = y - r * 55 / 100; ch = r * 90 / 100;
+        c->tx0 = x - r * 3 / 4; c->tx1 = x + r * 3 / 4;
+        c->ty0 = y - r * 3 / 4; c->ty1 = y + r * 3 / 4;
+    } else {
+        cx0 = k->sc[0] + 1; cy0 = k->sc[1] + 1;
+        cw = k->sc[2] - k->sc[0] - 1; ch = k->sc[3] - k->sc[1] - 1;
+        c->tx0 = k->sc[0] + 3; c->tx1 = k->sc[2] - 3;
+        c->ty0 = k->sc[1] + 3; c->ty1 = k->sc[3] - 3;
+    }
+    lv_color_t tcol = lv_color_mix(lv_color_white(), CP(k->grid), 46);   /* a shade whiter than the grid */
+    c->tilt_v = box(c->scr, (c->tx0 + c->tx1) / 2, c->ty0, 1, c->ty1 - c->ty0, tcol);
+    c->tilt_h = box(c->scr, c->tx0, (c->ty0 + c->ty1) / 2, c->tx1 - c->tx0, 1, tcol);
+    c->tilt_opa = 255;
+
+    lv_obj_t *chrt = lv_chart_create(c->scr);
+    lv_obj_set_pos(chrt, cx0, cy0);
+    lv_obj_set_size(chrt, cw, ch);
+    lv_obj_set_style_bg_opa(chrt, LV_OPA_0, 0);            /* panel + grid are in the skin */
+    lv_obj_set_style_border_width(chrt, 0, 0);
+    lv_obj_set_style_radius(chrt, 0, 0);
+    lv_obj_set_style_pad_all(chrt, k->scope_round ? 0 : 4, 0);
+    lv_chart_set_div_line_count(chrt, 0, 0);
+    lv_chart_set_type(chrt, LV_CHART_TYPE_LINE);
+    lv_chart_set_point_count(chrt, k->scope_round ? 50 : 60);
+    lv_chart_set_range(chrt, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
+    lv_chart_set_update_mode(chrt, LV_CHART_UPDATE_MODE_SHIFT);
+    lv_obj_set_style_size(chrt, 0, LV_PART_INDICATOR);
+    lv_obj_set_style_line_width(chrt, 2, LV_PART_ITEMS);
+    lv_obj_clear_flag(chrt, LV_OBJ_FLAG_CLICKABLE);
+    c->ser = lv_chart_add_series(chrt, trace, LV_CHART_AXIS_PRIMARY_Y);
+    for (int i = 0; i < 60; i++) lv_chart_set_next_value(chrt, c->ser, 3);
+    c->chart = chrt;
+
+    /* keyed overlay: same shape as the frame in the art, shown only while the VOX gate is open */
+    lv_color_t oc = COL_RED;
+    c->nfr = 0;
+    if (k->scope_round) {
+        c->fr[0] = ring(c->scr, k->sc[0], k->sc[1], k->sc[2] + 1, 3, 360, oc);
+        c->nfr = 1;
+    } else {
+        int x0 = k->sc[0] - 3, y0 = k->sc[1] - 3, x1 = k->sc[2] + 3, y1 = k->sc[3] + 3;
+        lv_point_t (*P)[9] = c->fr_pts;
+        switch (k->frame_kind) {
+        case FRAME_NOTCHED: {
+            lv_point_t q[6] = {{x0, y0 + 12}, {x0 + 12, y0}, {x1, y0}, {x1, y1}, {x0, y1}, {x0, y0 + 12}};
+            memcpy(P[0], q, sizeof(q));
+            c->fr[c->nfr++] = pline(c->scr, P[0], 6, oc, 3);
+            break;
+        }
+        case FRAME_BRACKETS: {
+            const int L = 16, cs[4][4] = {{x0, y0, 1, 1}, {x1, y0, -1, 1}, {x0, y1, 1, -1}, {x1, y1, -1, -1}};
+            for (int i = 0; i < 4; i++) {
+                P[i][0] = (lv_point_t){cs[i][0] + cs[i][2] * L, cs[i][1]};
+                P[i][1] = (lv_point_t){cs[i][0], cs[i][1]};
+                P[i][2] = (lv_point_t){cs[i][0], cs[i][1] + cs[i][3] * L};
+                c->fr[c->nfr++] = pline(c->scr, P[i], 3, oc, 3);
+            }
+            break;
+        }
+        case FRAME_DOUBLE: {
+            for (int j = 0; j < 2; j++) {
+                int kk = j ? 5 : 0, cc = 10 - kk;
+                lv_point_t q[9] = {{x0 + kk + cc, y0 + kk}, {x1 - kk - cc, y0 + kk}, {x1 - kk, y0 + kk + cc},
+                                   {x1 - kk, y1 - kk - cc}, {x1 - kk - cc, y1 - kk}, {x0 + kk + cc, y1 - kk},
+                                   {x0 + kk, y1 - kk - cc}, {x0 + kk, y0 + kk + cc}, {x0 + kk + cc, y0 + kk}};
+                memcpy(P[j], q, sizeof(q));
+                c->fr[c->nfr++] = pline(c->scr, P[j], 9, oc, j ? 1 : 3);
+            }
+            break;
+        }
+        default: {                                         /* ruler-tick / dashed: solid outline */
+            lv_point_t q[5] = {{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}, {x0, y0}};
+            memcpy(P[0], q, sizeof(q));
+            c->fr[c->nfr++] = pline(c->scr, P[0], 5, oc, 3);
+        }
+        }
+    }
+    for (int i = 0; i < c->nfr; i++) lv_obj_add_flag(c->fr[i], LV_OBJ_FLAG_HIDDEN);
 }
 
 static void make_small_lamps(console_t *c)
@@ -291,22 +415,95 @@ static void make_small_lamps(console_t *c)
     c->tx = box(c->scr, 276, 22, 14, 14, COL_PANEL);      /* TX/CLIP: CLIP right edge = battery bar (354) */
     c->clip = box(c->scr, 340, 22, 14, 14, COL_PANEL);
     lv_obj_set_style_border_width(c->tx, 1, 0);
-    lv_obj_set_style_border_color(c->tx, COL_FRAME, 0);
+    lv_obj_set_style_border_color(c->tx, CP(c->sk->frame), 0);
     lv_obj_set_style_border_width(c->clip, 1, 0);
-    lv_obj_set_style_border_color(c->clip, COL_FRAME, 0);
+    lv_obj_set_style_border_color(c->clip, CP(c->sk->frame), 0);
 }
 
-/* battery bar: x 346-354, same span as the meter (y 49-178), no label;
- * drains from the top; green, yellow at 30 %, red at 15 % */
-#define BATT_X 346
-#define BATT_TOP 49
-#define BATT_BOT 178
+/* ---- voice meter + battery ---- */
 static void make_meter(console_t *c)
 {
-    for (int i = 0; i < METER_SEGS; i++)
-        c->meter[i] = box(c->scr, 306, 178 - i * 11 - 8, 36, 8, COL_PANEL);
-    c->batt = box(c->scr, BATT_X, BATT_TOP, 8, BATT_BOT - BATT_TOP, COL_GREEN);
+    const skin_desc_t *k = c->sk;
+    const int16_t *m = k->mt;
+    c->nmeter = 0;
+    switch (k->meter_kind) {
+    case METER_VSEG: {
+        int n = m[4] > MAX_METER ? MAX_METER : m[4];
+        float h = (float)(m[2] - m[1]) / n;
+        for (int i = 0; i < n; i++)
+            c->meter[c->nmeter++] = box(c->scr, m[0], (int)(m[2] - (i + 1) * h + 2), m[3], (int)(h - 3), COL_GREEN);
+        break;
+    }
+    case METER_DOTS: {
+        int n = m[3];
+        float step = (float)(m[2] - m[1]) / n, r = step * 0.36f;
+        for (int i = 0; i < n; i++) {
+            lv_obj_t *o = box(c->scr, (int)(m[0] - r), (int)(m[2] - step * (i + 0.5f) - r), (int)(2 * r), (int)(2 * r), COL_GREEN);
+            lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
+            c->meter[c->nmeter++] = o;
+        }
+        break;
+    }
+    case METER_TWIN:
+        for (int i = 0; i < 2; i++) {
+            lv_obj_t *o = box(c->scr, m[0] + i * 16, m[2] - 1, 10, 1, CP(k->accent));
+            lv_obj_set_style_bg_grad_color(o, CP(k->trace), 0);
+            lv_obj_set_style_bg_grad_dir(o, LV_GRAD_DIR_VER, 0);
+            c->meter[c->nmeter++] = o;
+        }
+        break;
+    case METER_HSEG: {
+        int n = m[4] > MAX_METER ? MAX_METER : m[4];
+        float w = (float)(m[1] - m[0]) / n;
+        for (int i = 0; i < n; i++)
+            c->meter[c->nmeter++] = box(c->scr, (int)(m[0] + i * w + 1), m[2], (int)(w - 3), m[3], CP(k->trace));
+        break;
+    }
+    case METER_ARC:
+        c->marc = ring(c->scr, m[0], m[1], m[2] + 4, 8, 0, CP(k->trace));
+        lv_arc_set_rotation(c->marc, 200);
+        c->needle_pts[0] = (lv_point_t){m[0], m[1]};
+        c->needle_pts[1] = (lv_point_t){m[0], m[1]};
+        c->needle = pline(c->scr, c->needle_pts, 2, CP(k->accent), 2);
+        c->pivot = box(c->scr, m[0] - 4, m[1] - 4, 8, 8, CP(k->frame));
+        lv_obj_set_style_radius(c->pivot, LV_RADIUS_CIRCLE, 0);
+        break;
+    }
+    if (k->batt_h) c->batt = box(c->scr, k->bt[0], k->bt[2], k->bt[1] - k->bt[0], k->bt[3], COL_GREEN);
+    else c->batt = box(c->scr, k->bt[0], k->bt[1], k->bt[3], k->bt[2] - k->bt[1], COL_GREEN);
     c->shown_batt = -999;
+}
+
+static void meter_update(console_t *c, int lvl)
+{
+    const skin_desc_t *k = c->sk;
+    const int16_t *m = k->mt;
+    switch (k->meter_kind) {
+    case METER_TWIN:
+        for (int i = 0; i < 2; i++) {
+            int lv = i ? (lvl > 12 ? lvl - 12 : 0) : lvl;
+            int h = (m[2] - m[1]) * lv / 100;
+            if (h < 1) h = 1;
+            lv_obj_set_y(c->meter[i], m[2] - h);
+            lv_obj_set_height(c->meter[i], h);
+        }
+        break;
+    case METER_ARC: {
+        lv_arc_set_angles(c->marc, 0, 140 * lvl / 100);
+        float a = (200.0f + 140.0f * lvl / 100.0f) * 3.14159265f / 180.0f;
+        c->needle_pts[1] = (lv_point_t){m[0] + (int)((m[2] - 6) * cosf(a)), m[1] + (int)((m[2] - 6) * sinf(a))};
+        lv_line_set_points(c->needle, c->needle_pts, 2);
+        break;
+    }
+    default: {
+        int n = c->nmeter, lit = lvl * n / 100;
+        lv_color_t lo = k->meter_kind == METER_VSEG ? COL_GREEN : CP(k->trace);
+        for (int i = 0; i < n; i++) {
+            lv_obj_set_style_bg_opa(c->meter[i], i < lit ? LV_OPA_COVER : LV_OPA_0, 0);
+            lv_obj_set_style_bg_color(c->meter[i], i >= n * 3 / 4 ? CP(k->accent) : lo, 0);
+        }
+    }
+    }
 }
 
 /* Slow sensors are read rarely and cached: on the device each read is an I2C transaction,
@@ -342,6 +539,7 @@ static bool temp_get(float *c)
     return temp_ok;
 }
 
+/* battery: drains from the top (vertical) or the right (horizontal); green, yellow <= 30 %, red <= 15 % */
 static void batt_update(console_t *c)
 {
     int pct = S.show_batt ? batt_get() : -1;
@@ -350,10 +548,16 @@ static void batt_update(console_t *c)
     if (pct < 0) { lv_obj_add_flag(c->batt, LV_OBJ_FLAG_HIDDEN); return; }
     lv_obj_clear_flag(c->batt, LV_OBJ_FLAG_HIDDEN);
     if (pct > 100) pct = 100;
-    int h = (BATT_BOT - BATT_TOP) * pct / 100;
-    if (h < 2) h = 2;
-    lv_obj_set_y(c->batt, BATT_BOT - h);
-    lv_obj_set_height(c->batt, h);
+    const int16_t *b = c->sk->bt;
+    if (c->sk->batt_h) {
+        int w = (b[1] - b[0]) * pct / 100;
+        lv_obj_set_width(c->batt, w < 2 ? 2 : w);
+    } else {
+        int h = (b[2] - b[1]) * pct / 100;
+        if (h < 2) h = 2;
+        lv_obj_set_y(c->batt, b[2] - h);
+        lv_obj_set_height(c->batt, h);
+    }
     lv_obj_set_style_bg_color(c->batt, pct <= 15 ? COL_RED : pct <= 30 ? COL_AMBER : COL_GREEN, 0);
 }
 
@@ -371,10 +575,10 @@ static void tilt_update(console_t *c, bool keyed)
     float fx = c->tilt_x / TILT_RANGE, fy = c->tilt_y / TILT_RANGE;
     if (fx > 1) fx = 1; if (fx < -1) fx = -1;
     if (fy > 1) fy = 1; if (fy < -1) fy = -1;
-    int cx = (SCOPE_X0 + SCOPE_X1) / 2 + (int)(fx * (SCOPE_X1 - SCOPE_X0) / 2);
-    int cy = (SCOPE_Y0 + SCOPE_Y1) / 2 + (int)(fy * (SCOPE_Y1 - SCOPE_Y0) / 2);
-    if (cx > SCOPE_X1 - 1) cx = SCOPE_X1 - 1;
-    if (cy > SCOPE_Y1 - 1) cy = SCOPE_Y1 - 1;
+    int cx = (c->tx0 + c->tx1) / 2 + (int)(fx * (c->tx1 - c->tx0) / 2);
+    int cy = (c->ty0 + c->ty1) / 2 + (int)(fy * (c->ty1 - c->ty0) / 2);
+    if (cx > c->tx1 - 1) cx = c->tx1 - 1;
+    if (cy > c->ty1 - 1) cy = c->ty1 - 1;
     lv_obj_set_x(c->tilt_v, cx);
     lv_obj_set_y(c->tilt_h, cy);
     lv_opa_t o = (lv_opa_t)(c->tilt_opa < 2 ? 0 : c->tilt_opa);
@@ -382,50 +586,107 @@ static void tilt_update(console_t *c, bool keyed)
     lv_obj_set_style_bg_opa(c->tilt_h, o, 0);
 }
 
+/* ---- lamps ---- */
 static uint16_t lamp_delay(bool busy)
 {
     return busy ? 10 + rnd() % 21          /* 1-3 s while transmitting */
                 : 200 + rnd() % 201;       /* 20-40 s idle */
 }
 
+static lv_color_t lamp_color(console_t *c, int st)
+{
+    if (c->lamp_has_off && st == 0) return CP(0x151A1F);
+    return CP(c->sk->lamp[st & 3]);
+}
+
+static lv_obj_t *add_lamp(console_t *c, int x, int y, int w, int h, bool dome)
+{
+    if (c->nlamps >= MAX_LAMPS) return NULL;
+    lv_obj_t *o = box(c->scr, x, y, w, h, COL_PANEL);
+    if (dome) {
+        lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
+        lv_obj_t *hl = box(o, w / 5, h / 5, w / 4, h / 5, lv_color_white());   /* dome highlight */
+        lv_obj_set_style_radius(hl, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_opa(hl, LV_OPA_40, 0);
+    }
+    int i = c->nlamps++;
+    c->lamp[i] = o;
+    c->lamp_st[i] = rnd() % 4;
+    c->lamp_next[i] = lamp_delay(false);
+    lv_obj_set_style_bg_color(o, lamp_color(c, c->lamp_st[i]), 0);
+    return o;
+}
+
 static void make_lamps(console_t *c)
 {
-    static const struct { int x, y, w, h; bool dome; } L[LAMPS] = {
+    const skin_desc_t *k = c->sk;
+    int cx = k->lp[0], cy = k->lp[1];
+    c->nlamps = 0;
+    c->lamp_has_off = (k->lamps_kind == LAMPS_SWITCHER || k->lamps_kind == LAMPS_MATRIX);
+    switch (k->lamps_kind) {
+    case LAMPS_GRID: {
         /* 4-row grid, 29 px pitch, row centres 7/36/65/94 (readout lines sit on the same rows) */
-        {0, 0, 80, 14, false}, {0, 29, 32, 14, false}, {42, 22, 28, 28, true},
-        {0, 58, 32, 14, false}, {42, 58, 32, 14, false}, {0, 80, 28, 28, true}, {42, 87, 32, 14, false},
-    };
-    for (int i = 0; i < LAMPS; i++) {
-        lv_obj_t *o = box(c->scr, CLUSTER_X + L[i].x, CLUSTER_Y + L[i].y, L[i].w, L[i].h, COL_PANEL);
-        if (L[i].dome) {
-            lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
-            lv_obj_t *hl = box(o, 6, 5, 6, 5, lv_color_white());   /* dome highlight */
-            lv_obj_set_style_radius(hl, LV_RADIUS_CIRCLE, 0);
-            lv_obj_set_style_bg_opa(hl, LV_OPA_40, 0);
+        static const struct { int x, y, w, h; bool dome; } L[7] = {
+            {0, 0, 80, 14, false}, {0, 29, 32, 14, false}, {42, 22, 28, 28, true},
+            {0, 58, 32, 14, false}, {42, 58, 32, 14, false}, {0, 80, 28, 28, true}, {42, 87, 32, 14, false},
+        };
+        for (int i = 0; i < 7; i++) add_lamp(c, cx - 40 + L[i].x, cy - 54 + L[i].y, L[i].w, L[i].h, L[i].dome);
+        break;
+    }
+    case LAMPS_SWITCHER: {                                 /* broadcast-switcher bank */
+        int cols = k->lp[2] ? k->lp[2] : 8, rows = k->lp[3] ? k->lp[3] : 5;
+        int x0 = cx - (cols * 13 - 4) / 2, y0 = cy - (rows * 14 - 7) / 2;
+        for (int r = 0; r < rows; r++)
+            for (int col = 0; col < cols; col++) add_lamp(c, x0 + col * 13, y0 + r * 14, 9, 7, false);
+        break;
+    }
+    case LAMPS_DOMES:
+        for (int i = 0; i < 9; i++)
+            add_lamp(c, cx - 30 + (i % 3) * 30 - 11, cy - 30 + (i / 3) * 30 - 11, 22, 22, true);
+        break;
+    case LAMPS_PILLS: {                                    /* lit part of each tube (tube is in the art) */
+        static const int H[5] = {34, 52, 70, 34, 52};
+        for (int i = 0; i < 5; i++) {
+            lv_obj_t *o = add_lamp(c, cx - 32 + i * 16 - 5, cy + 46 - H[i], 10, H[i], false);
+            if (o) lv_obj_set_style_radius(o, 5, 0);
         }
-        c->lamp_st[i] = rnd() % 4;
-        c->lamp_next[i] = lamp_delay(false);
-        lv_obj_set_style_bg_color(o, C(LAMP_HEX[c->lamp_st[i]]), 0);
-        c->lamp[i] = o;
+        break;
+    }
+    case LAMPS_DIAMONDS:
+        for (int i = 0; i < 9; i++) {
+            int x = cx + ((i % 3) - 1) * 26 + (((i / 3) % 2) ? 13 : 0) - 6, y = cy + ((i / 3) - 1) * 28;
+            lv_obj_t *o = add_lamp(c, x - 7, y - 7, 14, 14, false);
+            if (o) {
+                lv_obj_set_style_transform_angle(o, 450, 0);   /* square turned 45 deg = diamond */
+                lv_obj_set_style_transform_pivot_x(o, 7, 0);
+                lv_obj_set_style_transform_pivot_y(o, 7, 0);
+            }
+        }
+        break;
+    case LAMPS_MATRIX: {
+        int x0 = cx - (4 * 22 - 6) / 2, y0 = cy - (4 * 22 - 6) / 2;
+        for (int i = 0; i < 16; i++) add_lamp(c, x0 + (i % 4) * 22, y0 + (i / 4) * 22, 16, 16, false);
+        break;
+    }
     }
 }
 
 static void lamp_flip(console_t *c, int i)
 {
     c->lamp_st[i] = (c->lamp_st[i] + 1 + rnd() % 3) % 4;     /* always a different colour */
-    lv_obj_set_style_bg_color(c->lamp[i], C(LAMP_HEX[c->lamp_st[i]]), 0);
+    lv_obj_set_style_bg_color(c->lamp[i], lamp_color(c, c->lamp_st[i]), 0);
 }
 
-/* readout line i: centred over the SYS key, vertically on lamp row i */
+/* ---- readout (Aurebesh lines; line 0 can hold the secret temp) ---- */
 static void tick_place(console_t *c, int i)
 {
     lv_obj_update_layout(c->tick[i]);
-    lv_obj_set_pos(c->tick[i], TICK_CX - lv_obj_get_width(c->tick[i]) / 2,
-                   CLUSTER_Y + LAMP_ROW[i] - lv_obj_get_height(c->tick[i]) / 2);
+    lv_obj_set_pos(c->tick[i], c->tick_cx - lv_obj_get_width(c->tick[i]) / 2,
+                   c->tick_y0 + i * c->tick_pitch - lv_obj_get_height(c->tick[i]) / 2);
 }
 
 /* secret temp on readout line 0: "TEMP" and the unit in Aurebesh, the number in the
- * callsign's TK-style digits, centred as one group over the SYS key */
+ * callsign's TK-style digits, centred as one group on the readout column */
 static void temp_update(console_t *c)
 {
     float tc = 0;
@@ -455,7 +716,7 @@ static void temp_update(console_t *c)
     lv_label_set_text_static(c->t_unit, S.temp_f ? "F" : "C");
     lv_obj_update_layout(c->t_word);
     int w1 = lv_obj_get_width(c->t_word), w2 = lv_obj_get_width(c->t_num), w3 = lv_obj_get_width(c->t_unit);
-    int gap = 6, x = TICK_CX - (w1 + gap + w2 + 4 + w3) / 2, cy = CLUSTER_Y + LAMP_ROW[0];
+    int gap = 6, x = c->tick_cx - (w1 + gap + w2 + 4 + w3) / 2, cy = c->tick_y0;
     /* share one baseline: the two fonts pad their line boxes differently, so centring
      * the boxes would leave the digits sitting higher than the Aurebesh letters */
     int wy = cy - lv_obj_get_height(c->t_word) / 2;
@@ -469,15 +730,21 @@ static void temp_update(console_t *c)
 
 static void make_ticker(console_t *c)
 {
-    for (int i = 0; i < TICK_LINES; i++) {
+    const skin_desc_t *k = c->sk;
+    lv_color_t col = CP(k->tick);
+    c->ntick = k->ro[2] > MAX_TICK ? MAX_TICK : k->ro[2];
+    c->tick_cx = k->ro[0];
+    c->tick_pitch = k->ro[3];
+    c->tick_y0 = k->ro[1] - ((c->ntick - 1) * c->tick_pitch) / 2;
+    for (int i = 0; i < c->ntick; i++) {
         c->tick_word[i] = (i * 5 + (c == &con_lock ? 3 : 0)) % NWORDS;
-        c->tick[i] = aureb_label(c->scr, WORDS[c->tick_word[i]], f_aureb13, COL_TICK);
+        c->tick[i] = aureb_label(c->scr, WORDS[c->tick_word[i]], f_aureb13, col);
         tick_place(c, i);
     }
     c->tick_next = 8;
-    c->t_word = aureb_label(c->scr, "TEMP", f_aureb13, COL_TICK);
-    c->t_num = label(c->scr, "0", f_aureng20 ? f_aureng20 : &lv_font_montserrat_16, COL_TICK);   /* 20 px: digits 13 px tall = the Aurebesh letters as drawn */
-    c->t_unit = aureb_label(c->scr, "F", f_aureb13, COL_TICK);
+    c->t_word = aureb_label(c->scr, "TEMP", f_aureb13, col);
+    c->t_num = label(c->scr, "0", f_aureng20 ? f_aureng20 : &lv_font_montserrat_16, col);   /* 20 px: digits 13 px tall = the Aurebesh letters as drawn */
+    c->t_unit = aureb_label(c->scr, "F", f_aureb13, col);
     lv_obj_add_flag(c->t_word, LV_OBJ_FLAG_HIDDEN);        /* hidden until temp_update places them */
     lv_obj_add_flag(c->t_num, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(c->t_unit, LV_OBJ_FLAG_HIDDEN);
@@ -487,11 +754,12 @@ static void make_ticker(console_t *c)
 static void tick_change(console_t *c)
 {
     int first = S.show_temp ? 1 : 0;                       /* line 0 holds the temp readout */
-    int i = first + rnd() % (TICK_LINES - first), w;
+    if (c->ntick - first < 1) return;
+    int i = first + rnd() % (c->ntick - first), w;
     for (;;) {
         w = rnd() % NWORDS;
         bool used = false;
-        for (int k = 0; k < TICK_LINES; k++) used |= (c->tick_word[k] == w);
+        for (int k = 0; k < c->ntick; k++) used |= (c->tick_word[k] == w);
         if (!used) break;
     }
     c->tick_word[i] = w;
@@ -499,43 +767,155 @@ static void tick_change(console_t *c)
     tick_place(c, i);
 }
 
-static lv_obj_t *ring(lv_obj_t *p, int cx, int cy, int r, int w, int span, lv_color_t col)
+/* ---- rotors: three independently wandering angles drive every design ---- */
+static void rotor_lines_square(console_t *c)
 {
-    lv_obj_t *a = lv_arc_create(p);
-    lv_obj_set_size(a, r * 2, r * 2);
-    lv_obj_set_pos(a, cx - r, cy - r);
-    lv_arc_set_bg_angles(a, 0, 0);
-    lv_obj_set_style_arc_opa(a, LV_OPA_0, LV_PART_MAIN);
-    lv_arc_set_angles(a, 0, span);
-    lv_obj_set_style_arc_width(a, w, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(a, col, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_rounded(a, false, LV_PART_INDICATOR);
-    lv_obj_remove_style(a, NULL, LV_PART_KNOB);
-    lv_obj_clear_flag(a, LV_OBJ_FLAG_CLICKABLE);
-    return a;
+    const int16_t *t = c->sk->rt;
+    for (int s = 0; s < 3; s++) {
+        float rr = t[2] - s * 13, a0 = (c->ang[s] + 45) * 3.14159265f / 180.0f;
+        float px[4], py[4];
+        for (int i = 0; i < 4; i++) {
+            px[i] = t[0] + rr * cosf(a0 + 1.5707963f * i);
+            py[i] = t[1] + rr * sinf(a0 + 1.5707963f * i);
+        }
+        for (int i = 0; i < 4; i++) {
+            int pv = (i + 3) % 4, nx = (i + 1) % 4;
+            lv_point_t *P = c->rl_pts[s * 4 + i];
+            P[0] = (lv_point_t){(int)(px[i] + (px[pv] - px[i]) * 0.3f), (int)(py[i] + (py[pv] - py[i]) * 0.3f)};
+            P[1] = (lv_point_t){(int)px[i], (int)py[i]};
+            P[2] = (lv_point_t){(int)(px[i] + (px[nx] - px[i]) * 0.3f), (int)(py[i] + (py[nx] - py[i]) * 0.3f)};
+            lv_line_set_points(c->rl[s * 4 + i], P, 3);
+        }
+    }
 }
 
-/* Scomp link: outer 3-segment ring, inner rotor, fast blue tip (socket + hub are in the skin) */
-static void make_scomp(console_t *c)
+static void rotor_gear_pts(console_t *c)
 {
-    for (int i = 0; i < 3; i++) c->ring_outer[i] = ring(c->scr, SCOMP_CX, SCOMP_CY, 42, 8, 80, C(0x8A9095));
-    c->ring_inner = ring(c->scr, SCOMP_CX, SCOMP_CY, 28, 7, 250, COL_FRAME);
-    c->ring_tip[0] = ring(c->scr, SCOMP_CX, SCOMP_CY, 16, 4, 60, COL_BLUE);
-    c->ring_tip[1] = ring(c->scr, SCOMP_CX, SCOMP_CY, 16, 4, 60, COL_BLUE);
-    c->ang[0] = 0; c->ang[1] = 90; c->ang[2] = 0;
-    c->spd[0] = 2; c->spd[1] = -4; c->spd[2] = 9;       /* deg per 50 ms tick */
-    for (int r = 0; r < 3; r++) c->rev_next[r] = 160 + rnd() % 161;   /* 8-16 s */
+    const int16_t *t = c->sk->rt;
+    float o = c->ang[0] * 3.14159265f / 180.0f;
+    for (int i = 0; i < 33; i++) {
+        float a = o + 3.14159265f * i / 16.0f, rr = (i % 2 == 0) ? t[2] : t[2] - 7;
+        c->rl_pts[0][i] = (lv_point_t){(int)(t[0] + rr * cosf(a)), (int)(t[1] + rr * sinf(a))};
+    }
+    lv_line_set_points(c->rl[0], c->rl_pts[0], 33);
+}
+
+static void sweep_line(console_t *c, int idx, float deg, float len)
+{
+    const int16_t *t = c->sk->rt;
+    float a = deg * 3.14159265f / 180.0f;
+    c->rl_pts[idx][0] = (lv_point_t){t[0], t[1]};
+    c->rl_pts[idx][1] = (lv_point_t){(int)(t[0] + len * cosf(a)), (int)(t[1] + len * sinf(a))};
+    lv_line_set_points(c->rl[idx], c->rl_pts[idx], 2);
+}
+
+static void rotor_draw(console_t *c)
+{
+    const skin_desc_t *k = c->sk;
+    switch (k->rotor_kind) {
+    case ROTOR_SCOMP:
+        for (int i = 0; i < 3; i++) lv_arc_set_rotation(c->arcs[i], (int)c->ang[0] + i * 120);
+        lv_arc_set_rotation(c->arcs[3], (int)c->ang[1]);
+        lv_arc_set_rotation(c->arcs[4], (int)c->ang[2]);
+        lv_arc_set_rotation(c->arcs[5], (int)c->ang[2] + 180);
+        break;
+    case ROTOR_RETICLE:
+        for (int g = 0; g < 3; g++) sweep_line(c, g, c->ang[0] - (3 - g) * 6, k->rt[2]);
+        sweep_line(c, 3, c->ang[0], k->rt[2]);
+        lv_arc_set_rotation(c->arcs[0], (int)c->ang[1]);
+        break;
+    case ROTOR_SQUARE:
+        rotor_lines_square(c);
+        break;
+    case ROTOR_TWIN:
+        for (int s = 0; s < 2; s++) {
+            int sg = s ? -1 : 1;
+            for (int i = 0; i < 3; i++) lv_arc_set_rotation(c->arcs[s * 4 + i], (int)(sg * c->ang[0]) + i * 120);
+            lv_arc_set_rotation(c->arcs[s * 4 + 3], (int)(-sg * c->ang[1]));
+        }
+        break;
+    case ROTOR_RADAR:
+        lv_arc_set_rotation(c->arcs[0], (int)c->ang[0] - 40);
+        sweep_line(c, 0, c->ang[0], k->rt[2] - 2);
+        break;
+    case ROTOR_GEAR:
+        rotor_gear_pts(c);
+        lv_arc_set_rotation(c->arcs[0], (int)c->ang[1]);
+        lv_arc_set_rotation(c->arcs[1], (int)c->ang[2]);
+        break;
+    }
+}
+
+static void make_rotor(console_t *c)
+{
+    const skin_desc_t *k = c->sk;
+    int x = k->rt[0], y = k->rt[1], r = k->rt[2];
+    lv_color_t fr = CP(k->frame), tr = CP(k->trace), ac = CP(k->accent);
+    lv_color_t light = lv_color_mix(lv_color_white(), fr, 26), dark = lv_color_mix(lv_color_black(), fr, 84);
+    c->narcs = c->nrl = 0;
+    static const float BASE[6][3] = {{2, 4, 9}, {7, 2, 1}, {1, 2, 3}, {3, 6, 1}, {4, 1, 1}, {1, 3, 6}};
+    switch (k->rotor_kind) {
+    case ROTOR_SCOMP:
+        for (int i = 0; i < 3; i++) c->arcs[c->narcs++] = ring(c->scr, x, y, r - 4, 8, 80, light);
+        c->arcs[c->narcs++] = ring(c->scr, x, y, r - 18, 7, 250, dark);
+        c->arcs[c->narcs++] = ring(c->scr, x, y, r - 30, 4, 60, tr);
+        c->arcs[c->narcs++] = ring(c->scr, x, y, r - 30, 4, 60, tr);
+        break;
+    case ROTOR_RETICLE:
+        for (int g = 0; g < 3; g++) {                      /* fading trail behind the sweep */
+            c->rl[c->nrl] = pline(c->scr, c->rl_pts[c->nrl], 2, lv_color_mix(tr, lv_color_black(), 40 + g * 40), 1);
+            c->nrl++;
+        }
+        c->rl[c->nrl] = pline(c->scr, c->rl_pts[c->nrl], 2, tr, 2);
+        c->nrl++;
+        c->arcs[c->narcs++] = ring(c->scr, x, y, r + 7, 3, 50, ac);
+        break;
+    case ROTOR_SQUARE: {
+        lv_color_t cols[3] = {fr, tr, ac};
+        for (int s = 0; s < 3; s++)
+            for (int i = 0; i < 4; i++) { c->rl[c->nrl] = pline(c->scr, c->rl_pts[c->nrl], 3, cols[s], 4 - s); c->nrl++; }
+        break;
+    }
+    case ROTOR_TWIN:
+        for (int s = 0; s < 2; s++) {
+            int xx = x + (s ? 24 : -24);
+            for (int i = 0; i < 3; i++) c->arcs[c->narcs++] = ring(c->scr, xx, y, 18, 6, 70, light);
+            c->arcs[c->narcs++] = ring(c->scr, xx, y, 9, 3, 90, tr);
+        }
+        break;
+    case ROTOR_RADAR: {
+        lv_obj_t *w = ring(c->scr, x, y, r - 2, r - 2, 40, tr);    /* the sweep wedge */
+        lv_obj_set_style_arc_opa(w, 70, LV_PART_INDICATOR);
+        c->arcs[c->narcs++] = w;
+        c->rl[c->nrl] = pline(c->scr, c->rl_pts[c->nrl], 2, tr, 2);
+        c->nrl++;
+        break;
+    }
+    case ROTOR_GEAR:
+        c->rl[c->nrl] = pline(c->scr, c->rl_pts[c->nrl], 33, fr, 2);
+        c->nrl++;
+        c->arcs[c->narcs++] = ring(c->scr, x, y, r - 14, 6, 200, tr);
+        c->arcs[c->narcs++] = ring(c->scr, x, y, r - 26, 4, 90, ac);
+        break;
+    }
+    for (int i = 0; i < 3; i++) {
+        c->base[i] = BASE[k->rotor_kind][i];
+        c->spd[i] = (i & 1) ? -c->base[i] : c->base[i];
+        c->ang[i] = i * 90;
+        c->rev_next[i] = 160 + rnd() % 161;                /* 8-16 s */
+    }
+    rotor_draw(c);
 }
 
 static void temp_update(console_t *c);
 static void console_build(console_t *c, lv_color_t trace)
 {
     make_small_lamps(c);
-    make_chart(c, trace);
+    make_scope(c, trace);
     make_meter(c);
     make_lamps(c);
     make_ticker(c);
-    make_scomp(c);
+    make_rotor(c);
     temp_update(c);          /* place the secret temp now, not half a second later */
 }
 
@@ -611,9 +991,9 @@ static void build_main(void)
 {
     console_t *c = &con_main;
     c->scr = make_screen(&skin_main, NULL);
-    c->callsign = label(c->scr, S.callsign, &lv_font_montserrat_22, COL_RED);
+    c->callsign = label(c->scr, S.callsign, &lv_font_montserrat_22, CP(c->sk->accent));
     callsign_show(c);
-    console_build(c, COL_BLUE);
+    console_build(c, CP(c->sk->trace));
 
     /* LOCK: guarded toggle (nut is in the skin) */
     lv_obj_t *hit = lv_obj_create(c->scr);                    /* touch area = whole housing */
@@ -649,8 +1029,10 @@ static void build_main(void)
     lv_obj_t *hinge = box(hit, 34, 5, 36, 6, C(0x8A9095));
     (void)hinge;
 
-    cap_sys = make_cap(c->scr, 132, 320, 104, 114, "SYS", "SETTINGS", COL_BLUE, false, sys_cb, LV_EVENT_CLICKED, NULL);
-    cap_live = make_cap(c->scr, 248, 320, 104, 114, "MUTED", "TAP FOR LIVE", COL_RED, false, live_cb, LV_EVENT_CLICKED, NULL);
+    cap_style_mode = c->sk->key_style;                    /* the skin's key style for SYS / LIVE */
+    cap_sys = make_cap(c->scr, 132, 320, 104, 114, "SYS", "SETTINGS", CP(c->sk->key), false, sys_cb, LV_EVENT_CLICKED, NULL);
+    cap_live = make_cap(c->scr, 248, 320, 104, 114, "MUTED", "TAP FOR LIVE", CP(c->sk->accent), false, live_cb, LV_EVENT_CLICKED, NULL);
+    cap_style_mode = KEYS_BEVEL;
     live_refresh();
 }
 
@@ -685,12 +1067,12 @@ static void build_lock(void)
     c->scr = make_screen(&skin_lock, NULL);
     lv_obj_add_flag(c->scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(c->scr, lock_screen_tap_cb, LV_EVENT_CLICKED, NULL);
-    c->callsign = label(c->scr, S.callsign, &lv_font_montserrat_22, COL_RED);
+    c->callsign = label(c->scr, S.callsign, &lv_font_montserrat_22, CP(c->sk->accent));
     callsign_show(c);
-    console_build(c, COL_RED);
-    lock_bar = box(c->scr, 52, 386, 32, 10, COL_RED);
+    console_build(c, CP(c->sk->accent));
+    lock_bar = box(c->scr, 52, 386, 32, 10, CP(c->sk->accent));
     for (int i = 0; i < 2; i++) {
-        lock_hex[i] = label(c->scr, "0000", &lv_font_montserrat_20, COL_AMBER);
+        lock_hex[i] = label(c->scr, "0000", &lv_font_montserrat_20, CP(c->sk->hexc));
         center_at(lock_hex[i], 184, 378 + i * 24);
     }
     for (int i = 0; i < 5; i++) lock_sig[i] = box(c->scr, 264 + i * 15, 394, 10, 20, COL_GREEN);
@@ -700,7 +1082,7 @@ static void build_lock(void)
 }
 
 /* ================= SETTINGS ================= */
-enum { P_VOLUME, P_EFFECT, P_VOX, P_STATIC, P_CLICK, P_BRIGHT, P_CALLSIGN, P_RESET, P_DISPLAY, P_SENSORS, NPAGES };
+enum { P_VOLUME, P_EFFECT, P_VOX, P_STATIC, P_CLICK, P_BRIGHT, P_CALLSIGN, P_RESET, P_DISPLAY, P_SENSORS, P_SKIN, NPAGES };
 static const struct { const char *title, *desc; int min, max; } PAGE[NPAGES] = {
     {"VOLUME", "SPEAKER LEVEL", 0, 100},
     {"EFFECT", "DRIVE + BITCRUSH", 0, 100},
@@ -712,6 +1094,7 @@ static const struct { const char *title, *desc; int min, max; } PAGE[NPAGES] = {
     {"FACTORY RESET", "", 0, 0},
     {"DISPLAY OFF", "", 0, 0},
     {"SENSORS", "", 0, 0},
+    {"SKIN", "", 0, 0},
 };
 static int page;
 static lv_obj_t *set_bg, *set_title, *set_count, *set_pip;
@@ -764,6 +1147,10 @@ static void value_refresh(void)
 
 static void toggles_refresh(void);
 static void sensors_readout(void);
+static void carousel_refresh(void);
+static lv_obj_t *grp_skin;
+static cap_t cap_skin[3];             /* < SKIN | APPLY | SKIN > */
+static int skin_sel, cur_skin = -1;
 
 static void page_show(void)
 {
@@ -771,11 +1158,16 @@ static void page_show(void)
     lv_label_set_text_fmt(set_count, "%d/%d", page + 1, NPAGES);
     lv_obj_update_layout(set_count);
     lv_obj_set_pos(set_count, 322 - lv_obj_get_width(set_count), 19);
-    lv_obj_set_x(set_pip, 46 + page * 27);
-    bool three = (page == P_SENSORS);
+    lv_obj_set_x(set_pip, 46 + page * 25);
+    bool three = (page == P_SENSORS), skinp = (page == P_SKIN);
     bool wide = (page == P_CALLSIGN || page == P_RESET || page == P_DISPLAY);
-    lv_img_set_src(set_bg, three ? &skin_set_sensors : wide ? &skin_set_wide : &skin_set_value);
-    if (wide || three) { lv_obj_add_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
+    lv_img_set_src(set_bg, skinp ? &skin_set_skin : three ? &skin_set_sensors : wide ? &skin_set_wide : &skin_set_value);
+    if (skinp) lv_obj_clear_flag(grp_skin, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_skin, LV_OBJ_FLAG_HIDDEN);
+    for (int i = 0; i < 3; i++) {
+        if (skinp) lv_obj_clear_flag(cap_skin[i].cap, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(cap_skin[i].cap, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (wide || three || skinp) { lv_obj_add_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
     else { lv_obj_clear_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
     if (three) lv_obj_clear_flag(grp_sens, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_sens, LV_OBJ_FLAG_HIDDEN);
     for (int i = 0; i < NTOG; i++) {
@@ -786,7 +1178,7 @@ static void page_show(void)
     if (page == P_RESET) lv_obj_clear_flag(grp_reset, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_reset, LV_OBJ_FLAG_HIDDEN);
     if (page == P_DISPLAY) lv_obj_clear_flag(grp_disp, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_disp, LV_OBJ_FLAG_HIDDEN);
     if (wide) lv_obj_clear_flag(cap_wide.cap, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(cap_wide.cap, LV_OBJ_FLAG_HIDDEN);
-    if (!wide && !three) { lv_obj_clear_flag(cap_minus.cap, LV_OBJ_FLAG_HIDDEN); lv_obj_clear_flag(cap_plus.cap, LV_OBJ_FLAG_HIDDEN); }
+    if (!wide && !three && !skinp) { lv_obj_clear_flag(cap_minus.cap, LV_OBJ_FLAG_HIDDEN); lv_obj_clear_flag(cap_plus.cap, LV_OBJ_FLAG_HIDDEN); }
     else { lv_obj_add_flag(cap_minus.cap, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cap_plus.cap, LV_OBJ_FLAG_HIDDEN); }
 
     if (page == P_CALLSIGN) {
@@ -807,6 +1199,9 @@ static void page_show(void)
         lv_label_set_text(cap_wide.lbl, "TURN DISPLAY OFF");
         lv_label_set_text(cap_wide.sub, "TAP 5 TIMES TO WAKE");
         cap_style(&cap_wide, true);
+    } else if (page == P_SKIN) {
+        skin_sel = cur_skin;
+        carousel_refresh();
     } else if (page == P_SENSORS) {
         sensors_invalidate();                              /* fresh readings when opened */
         toggles_refresh();
@@ -817,6 +1212,137 @@ static void page_show(void)
     }
     lv_obj_align(cap_wide.lbl, LV_ALIGN_CENTER, 0, -10);
     lv_obj_align(cap_wide.sub, LV_ALIGN_CENTER, 0, 13);
+}
+
+/* ================= skins =================
+ * A skin = background art for MAIN + LOCK (RLE RGB565, decoded into RAM) + a recipe for
+ * the live widgets (skin.h). Applying one rebuilds both console screens. Settings and
+ * callsign screens keep the standard look. */
+static uint8_t *skin_buf[2];
+static lv_img_dsc_t thumb_dsc[64];
+
+static void rle_decode(const uint8_t *src, uint32_t len, uint8_t *dst, uint32_t cap)
+{
+    uint32_t i = 0, o = 0;
+    while (i < len && o + 2 <= cap) {
+        uint8_t n = src[i++];
+        if (n & 0x80) {                                     /* run: one pixel repeated n-126 times */
+            int cnt = n - 126;
+            uint8_t lo = src[i], hi = src[i + 1];
+            i += 2;
+            while (cnt-- && o + 2 <= cap) { dst[o++] = lo; dst[o++] = hi; }
+        } else {                                            /* n+1 literal pixels */
+            uint32_t b = (uint32_t)(n + 1) * 2;
+            if (o + b > cap) b = cap - o;
+            memcpy(dst + o, src + i, b);
+            i += (uint32_t)(n + 1) * 2;
+            o += b;
+        }
+    }
+}
+
+static void build_main(void);
+static void build_lock(void);
+
+static void skin_apply(int idx)
+{
+    if (idx < 0 || idx >= SKIN_COUNT) idx = 0;
+    const skin_desc_t *sk = &SKIN_TABLE[idx];
+    const uint32_t BYTES = SCR_W * SCR_H * 2;
+    if (lock_cover_timer) { lv_timer_del(lock_cover_timer); lock_cover_timer = NULL; }
+    if (con_main.scr) lv_obj_del(con_main.scr);           /* old screens go before their art is reused */
+    if (con_lock.scr) lv_obj_del(con_lock.scr);
+    if (sk->bg_main) {
+        for (int i = 0; i < 2; i++)
+            if (!skin_buf[i]) skin_buf[i] = lv_mem_alloc(BYTES);   /* PSRAM on the device */
+        if (!skin_buf[0] || !skin_buf[1]) { sk = &SKIN_TABLE[0]; idx = 0; }   /* no memory: default skin */
+    }
+    if (sk->bg_main) {
+        rle_decode(sk->bg_main, sk->bg_main_len, skin_buf[0], BYTES);
+        rle_decode(sk->bg_lock, sk->bg_lock_len, skin_buf[1], BYTES);
+        skin_main = mk_skin(skin_buf[0]);
+        skin_lock = mk_skin(skin_buf[1]);
+    } else {
+        skin_main = mk_skin(skin_main_px);
+        skin_lock = mk_skin(skin_lock_px);
+    }
+    lv_img_cache_invalidate_src(NULL);
+    memset(&con_main, 0, sizeof(con_main));
+    memset(&con_lock, 0, sizeof(con_lock));
+    con_main.sk = con_lock.sk = sk;
+    build_main();
+    build_lock();
+    cur_skin = idx;
+}
+
+/* ---- SKIN page: thumbnail carousel (prev | current | next) ---- */
+static lv_obj_t *car_img[3], *car_name, *car_active;
+
+static void carousel_refresh(void)
+{
+    for (int k = 0; k < 3; k++) {
+        int i = (skin_sel + k - 1 + SKIN_COUNT) % SKIN_COUNT;
+        lv_img_set_src(car_img[k], &thumb_dsc[i]);
+    }
+    lv_label_set_text_fmt(car_name, "%d  %s", skin_sel + 1, SKIN_TABLE[skin_sel].name);
+    center_at(car_name, 184, 188);
+    bool active = (skin_sel == cur_skin);
+    lv_label_set_text(cap_skin[1].lbl, active ? "ACTIVE" : "APPLY");
+    lv_label_set_text(cap_skin[1].sub, active ? "IN USE" : "USE SKIN");
+    cap_style(&cap_skin[1], !active);
+    lv_obj_align(cap_skin[1].lbl, LV_ALIGN_CENTER, 0, -10);
+    lv_obj_align(cap_skin[1].sub, LV_ALIGN_CENTER, 0, 13);
+    if (active) lv_obj_clear_flag(car_active, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(car_active, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void skin_step_cb(lv_event_t *e)
+{
+    int dir = (int)(intptr_t)lv_event_get_user_data(e);
+    skin_sel = (skin_sel + dir + SKIN_COUNT) % SKIN_COUNT;
+    carousel_refresh();
+}
+
+static void skin_apply_cb(lv_event_t *e)
+{
+    if (skin_sel == cur_skin) return;
+    skin_apply(skin_sel);
+    S.skin = (uint8_t)skin_sel;
+    ui_platform_apply(&S);
+    carousel_refresh();
+}
+
+static void build_skin_page(lv_obj_t *scr)
+{
+    grp_skin = group(scr);
+    for (int i = 0; i < SKIN_COUNT && i < 64; i++) {
+        memset(&thumb_dsc[i], 0, sizeof(lv_img_dsc_t));
+        thumb_dsc[i].header.cf = LV_IMG_CF_TRUE_COLOR;
+        thumb_dsc[i].header.w = THUMB_W;
+        thumb_dsc[i].header.h = THUMB_H;
+        thumb_dsc[i].data_size = THUMB_W * THUMB_H * 2;
+        thumb_dsc[i].data = SKIN_TABLE[i].thumb;
+    }
+    static const int X[3] = {62, 184, 306};
+    for (int k = 0; k < 3; k++) {
+        lv_obj_t *im = lv_img_create(grp_skin);
+        lv_obj_set_size(im, THUMB_W, THUMB_H);
+        lv_obj_set_pos(im, X[k] - THUMB_W / 2, 64 + (k == 1 ? 0 : 6));
+        if (k != 1) {                                       /* neighbours: smaller and dimmed */
+            lv_img_set_zoom(im, 170);
+            lv_obj_set_style_img_opa(im, LV_OPA_50, 0);
+            lv_obj_add_flag(im, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_event_cb(im, skin_step_cb, LV_EVENT_CLICKED, (void *)(intptr_t)(k - 1));
+        }
+        car_img[k] = im;
+    }
+    car_name = label(grp_skin, "", &lv_font_montserrat_14, COL_TEXT);
+    car_active = box(grp_skin, 184 - 20, 182 + 17, 40, 3, COL_GREEN);
+    cap_skin[0] = make_cap(scr, 16, 204, 104, 104, LV_SYMBOL_LEFT, "SKIN", COL_BLUE, true,
+                           skin_step_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
+    cap_skin[1] = make_cap(scr, 132, 204, 104, 104, "APPLY", "USE SKIN", COL_GREEN, false,
+                           skin_apply_cb, LV_EVENT_CLICKED, NULL);
+    cap_skin[2] = make_cap(scr, 248, 204, 104, 104, LV_SYMBOL_RIGHT, "SKIN", COL_BLUE, true,
+                           skin_step_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
 }
 
 /* ---- sensors page: three on/off keys (lit green = on) + live readings ---- */
@@ -952,7 +1478,7 @@ static void build_settings(void)
     set_title = label(scr_settings, "", &lv_font_montserrat_22, COL_TEXT);
     lv_obj_set_pos(set_title, 46, 15);
     set_count = label(scr_settings, "", &lv_font_montserrat_16, COL_LABEL);
-    set_pip = box(scr_settings, 46, 46, 22, 4, COL_AMBER);
+    set_pip = box(scr_settings, 46, 46, 20, 4, COL_AMBER);
 
     /* value pages */
     grp_value = group(scr_settings);
@@ -1035,6 +1561,7 @@ static void build_settings(void)
             lv_obj_align(cap_tog[i].sub, LV_ALIGN_CENTER, 0, 22);
         }
     }
+    build_skin_page(scr_settings);
     make_cap(scr_settings, 16, 320, 104, 114, LV_SYMBOL_LEFT, "PREV", COL_BLUE, true, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
     make_cap(scr_settings, 132, 320, 104, 114, "MAIN", "EXIT", COL_TEXT, false, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)0);
     make_cap(scr_settings, 248, 320, 104, 114, LV_SYMBOL_RIGHT, "NEXT", COL_BLUE, true, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
@@ -1206,14 +1733,17 @@ static void fast_cb(lv_timer_t *t)
     int lvl = audio_get_level();
     bool keyed = audio_is_keyed(), muted = audio_is_muted();
     lv_chart_set_next_value(c->chart, c->ser, lvl < 2 ? 2 : lvl);
-    int lit = lvl * METER_SEGS / 100;
-    for (int i = 0; i < METER_SEGS; i++)
-        lv_obj_set_style_bg_color(c->meter[i], i < lit ? (i >= 9 ? COL_RED : COL_GREEN) : COL_PANEL, 0);
-    lv_obj_set_style_bg_color(c->tx, keyed && !muted ? COL_RED : COL_PANEL, 0);
+    meter_update(c, lvl);
+    lv_obj_set_style_bg_color(c->tx, keyed && !muted ? CP(c->sk->accent) : COL_PANEL, 0);
     lv_obj_set_style_bg_color(c->clip, audio_get_clip() ? COL_RED : COL_PANEL, 0);
-    lv_color_t fc = keyed ? (muted ? COL_AMBER : COL_RED) : COL_GREY;
-    lv_obj_set_style_line_color(c->frame, fc, 0);
-    lv_obj_set_style_line_width(c->frame, keyed ? 3 : 2, 0);
+    /* keyed: overlay the scope frame in amber (muted) or red (transmitting) */
+    lv_color_t fc = muted ? COL_AMBER : COL_RED;
+    for (int i = 0; i < c->nfr; i++) {
+        if (!keyed) { lv_obj_add_flag(c->fr[i], LV_OBJ_FLAG_HIDDEN); continue; }
+        lv_obj_clear_flag(c->fr[i], LV_OBJ_FLAG_HIDDEN);
+        if (c->sk->scope_round) lv_obj_set_style_arc_color(c->fr[i], fc, LV_PART_INDICATOR);
+        else lv_obj_set_style_line_color(c->fr[i], fc, 0);
+    }
     batt_update(c);
     tilt_update(c, keyed);
 }
@@ -1226,10 +1756,9 @@ static void ring_cb(lv_timer_t *t)
     boost += (target - boost) * (target > boost ? 0.30f : 0.08f);   /* spin up fast, wind down slow */
     console_t *c = active_console();
     if (c) {
-        static const float base[3] = {2, 4, 9};
         for (int r = 0; r < 3; r++) {
             if (--c->rev_next[r] == 0) {                               /* reverse every 8-16 s, */
-                float m = (float)(1 + rnd() % 3) * base[r] / 2.0f;     /* at a new random speed */
+                float m = (float)(1 + rnd() % 3) * c->base[r] / 2.0f;  /* at a new random speed */
                 c->spd[r] = c->spd[r] > 0 ? -m : m;
                 c->rev_next[r] = 160 + rnd() % 161;
             }
@@ -1237,10 +1766,7 @@ static void ring_cb(lv_timer_t *t)
             while (c->ang[r] >= 360) c->ang[r] -= 360;
             while (c->ang[r] < 0) c->ang[r] += 360;
         }
-        for (int i = 0; i < 3; i++) lv_arc_set_rotation(c->ring_outer[i], (int)c->ang[0] + i * 120);
-        lv_arc_set_rotation(c->ring_inner, (int)c->ang[1]);
-        lv_arc_set_rotation(c->ring_tip[0], (int)c->ang[2]);
-        lv_arc_set_rotation(c->ring_tip[1], (int)c->ang[2] + 180);
+        rotor_draw(c);
     }
     if (lv_scr_act() == scr_settings) {
         spin_ang = (spin_ang + 1) % 360;                                  /* slow outer tick */
@@ -1259,10 +1785,10 @@ static void lamp_cb(lv_timer_t *t)
     if (c) {
         if (keyed && !was_keyed) {                                      /* key-up */
             int n = muted ? 1 : 3;
-            for (int k = 0; k < n; k++) lamp_flip(c, rnd() % LAMPS);
+            for (int k = 0; k < n; k++) lamp_flip(c, rnd() % c->nlamps);
             if (!muted) tick_change(c);
         }
-        for (int i = 0; i < LAMPS; i++) {
+        for (int i = 0; i < c->nlamps; i++) {
             if (busy && c->lamp_next[i] > 30) c->lamp_next[i] = lamp_delay(true);
             if (--c->lamp_next[i] == 0) { lamp_flip(c, i); c->lamp_next[i] = lamp_delay(busy); }
             if (c->lamp_st[i] == 2) {                                   /* slow red pulse, ~6 s */
@@ -1281,7 +1807,7 @@ static void lamp_cb(lv_timer_t *t)
         if (tick % 4 == 0) {
             lv_label_set_text_fmt(lock_hex[0], "%04X", (unsigned)(rnd() & 0xFFFF));
             lv_label_set_text_fmt(lock_hex[1], "%04X", (unsigned)(rnd() & 0xFFFF));
-            lv_obj_set_style_text_color(lock_hex[0], COL_AMBER, 0);
+            lv_obj_set_style_text_color(lock_hex[0], CP(con_lock.sk->hexc), 0);
             for (int i = 0; i < 5; i++) {
                 int h = 12 + rnd() % 30;
                 lv_obj_set_height(lock_sig[i], h);
@@ -1307,12 +1833,11 @@ void ui_init(void)
     rng_state ^= esp_random();
     if (!rng_state) rng_state = 0x5EED1234;
 
-    skin_main = mk_skin(skin_main_px);
-    skin_lock = mk_skin(skin_lock_px);
     skin_set_value = mk_skin(skin_settings_value_px);
     skin_set_wide = mk_skin(skin_settings_wide_px);
     skin_callsign = mk_skin(skin_callsign_px);
     skin_set_sensors = mk_skin(skin_settings_sensors_px);
+    skin_set_skin = mk_skin(skin_settings_skin_px);
 
     f_aureb13 = lv_tiny_ttf_create_data(aurebesh_ttf_start, aurebesh_ttf_len, 14);
     f_aureb12 = lv_tiny_ttf_create_data(aurebesh_ttf_start, aurebesh_ttf_len, 13);
@@ -1324,9 +1849,8 @@ void ui_init(void)
     f_aureng22 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 22);
     f_aureng18 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 18);
 
-    build_main();
-    build_lock();
-    build_settings();
+    build_settings();                       /* before skin_apply: the SKIN page owns the carousel */
+    skin_apply(S.skin);
     build_callsign();
     build_blank();
 

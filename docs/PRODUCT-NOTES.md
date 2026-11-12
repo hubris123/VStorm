@@ -28,6 +28,19 @@ another unit.
 - The signature check doubles as a corruption check for flaky cards.
 - Enclosure: the SD slot should be reachable (or the card swappable) for users who buy skins.
 
+### Art quality on the SD card (don't squeeze the art)
+
+Built-in skins had to be small. Skins on the card don't, so author them for quality:
+- The compression used so far is **lossless** (RLE): nothing is lost, it only wins on flat
+  black areas. On the card we can store art that doesn't compress well - textures, brushed
+  metal, gradients, fine panel detail, soft glows - at full quality, or even uncompressed
+  RGB565 (330 KB per screen) for the fastest possible load.
+- The real quality ceiling is the panel's **16-bit colour** (RGB565). Author art in full
+  colour and dither when converting so gradients don't band.
+- Never use lossy formats (JPEG-style) for UI art: they smear text and thin lines.
+- Larger files are fine: even 6 screens x 330 KB = 2 MB per skin loads in about a second
+  from a slow card, once, at skin change.
+
 ### What protects what
 
 | Threat | Protection |
