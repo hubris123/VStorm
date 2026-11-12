@@ -75,8 +75,12 @@ class Screen:
         tmp = Image.new("RGBA", (int(tw) + size, int(size * 1.6)), (0, 0, 0, 0))
         td = ImageDraw.Draw(tmp)
         cx = 0
+        base = anchor[1] == "s"                     # baseline anchor: line up with other fonts
         for ch, w in zip(s, widths):
-            td.text((cx, size * 0.8), ch, font=f, fill=fill, anchor="lm")
+            if base:
+                td.text((cx, size * 1.2), ch, font=f, fill=fill, anchor="ls")
+            else:
+                td.text((cx, size * 0.8), ch, font=f, fill=fill, anchor="lm")
             cx += w + track * size
         tmp = tmp.resize((int(tmp.width * stretch), tmp.height), Image.LANCZOS)
         real_w = tw * stretch
@@ -85,7 +89,7 @@ class Screen:
             px -= real_w / 2
         elif anchor[0] == "r":
             px -= real_w
-        py -= size * 0.8 if anchor[1] == "m" else size * 0.3
+        py -= size * 1.2 if base else size * 0.8 if anchor[1] == "m" else size * 0.3
         self.img.alpha_composite(tmp, (int(px), int(py)))
         self.d = ImageDraw.Draw(self.img)
 
@@ -347,15 +351,16 @@ class Ticker:
 
 def secret_temp(sc, cy, value, unit, col):
     """'TEMP' + unit in Aurebesh, the number in the callsign's TK-style digits, centred on x 184"""
-    fw, fn = font(AUREB, 14), font(AURENG, 22)   # digits as tall as the Aurebesh letters
+    fw, fn = font(AUREB, 13), font(AURENG, 18)   # digits as tall as the Aurebesh letters (13 px @1x)
     track, stretch = 0.22, 1.15
     w_word = (sum(fw.getlength(ch) for ch in "TEMP") + track * fw.size * 3) * stretch / S
     w_num = fn.getlength(str(value)) / S
     w_unit = fw.getlength(unit) * stretch / S
     x = TICK_X - (w_word + 6 + w_num + 4 + w_unit) / 2
-    sc.text(x, cy, "TEMP", fw, col, "lm")
-    sc.text(x + w_word + 6, cy, str(value), fn, col, "lm")
-    sc.text(x + w_word + 6 + w_num + 4, cy, unit, fw, col, "lm")
+    base = cy + 6                                   # one shared baseline for all three parts
+    sc.text(x, base, "TEMP", fw, col, "ls")
+    sc.text(x + w_word + 6, base, str(value), fn, col, "ls")
+    sc.text(x + w_word + 6 + w_num + 4, base, unit, fw, col, "ls")
 
 
 def ticker(sc, x, y, tk, f, col, rows=None, anchor="lm"):

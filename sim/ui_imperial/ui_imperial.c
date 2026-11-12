@@ -413,9 +413,15 @@ static void temp_update(console_t *c)
     lv_obj_update_layout(c->t_word);
     int w1 = lv_obj_get_width(c->t_word), w2 = lv_obj_get_width(c->t_num), w3 = lv_obj_get_width(c->t_unit);
     int gap = 6, x = TICK_CX - (w1 + gap + w2 + 4 + w3) / 2, cy = CLUSTER_Y + LAMP_ROW[0];
-    lv_obj_set_pos(c->t_word, x, cy - lv_obj_get_height(c->t_word) / 2);
-    lv_obj_set_pos(c->t_num, x + w1 + gap, cy - lv_obj_get_height(c->t_num) / 2);
-    lv_obj_set_pos(c->t_unit, x + w1 + gap + w2 + 4, cy - lv_obj_get_height(c->t_unit) / 2);
+    /* share one baseline: the two fonts pad their line boxes differently, so centring
+     * the boxes would leave the digits sitting higher than the Aurebesh letters */
+    int wy = cy - lv_obj_get_height(c->t_word) / 2;
+    const lv_font_t *fw = lv_obj_get_style_text_font(c->t_word, 0);
+    const lv_font_t *fn = lv_obj_get_style_text_font(c->t_num, 0);
+    int baseline = wy + fw->line_height - fw->base_line;
+    lv_obj_set_pos(c->t_word, x, wy);
+    lv_obj_set_pos(c->t_num, x + w1 + gap, baseline - (fn->line_height - fn->base_line));
+    lv_obj_set_pos(c->t_unit, x + w1 + gap + w2 + 4, wy);
 }
 
 static void make_ticker(console_t *c)
@@ -427,7 +433,7 @@ static void make_ticker(console_t *c)
     }
     c->tick_next = 8;
     c->t_word = aureb_label(c->scr, "TEMP", f_aureb13, COL_TICK);
-    c->t_num = label(c->scr, "0", f_aureng22 ? f_aureng22 : &lv_font_montserrat_16, COL_TICK);   /* 22 px: digits 14 px tall = Aurebesh letters */
+    c->t_num = label(c->scr, "0", f_aureng20 ? f_aureng20 : &lv_font_montserrat_16, COL_TICK);   /* 20 px: digits 13 px tall = the Aurebesh letters as drawn */
     c->t_unit = aureb_label(c->scr, "F", f_aureb13, COL_TICK);
     c->temp_c = 30;
 }
