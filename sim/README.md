@@ -1,0 +1,49 @@
+# VStorm virtual screen
+
+Runs the **real firmware UI (`firmware/main/ui.c`) and voice DSP (`firmware/main/dsp.c`)**
+in a browser, so screens and the effect can be worked on without flashing a board.
+Same LVGL version (8.4.0), same 16-bit colour, same 64 KB LVGL heap as the device.
+
+| Firmware piece | In the simulator |
+|---|---|
+| `ui.c`, `dsp.c` | compiled unmodified (`ui.c` has one `#ifdef UI_SIM` for how fonts are linked) |
+| LCD + touch (`esp_bsp`) | `<canvas>` + mouse/touch, `src/sim_main.c` |
+| `audio.c` (ADC mic → SDM out) | Web Audio blocks → same DSP → speakers, `src/sim_hal.c` |
+| `settings.c` (NVS) | browser `localStorage` |
+| BOOT button | on-page button: tap = mute, hold 3 s = lock, 10 s = factory reset |
+| backlight PWM | CSS brightness on the canvas |
+
+## Run it
+
+```bash
+cd sim && python3 -m http.server 8000
+```
+Open http://localhost:8000/web/ . `web/vstorm.wasm` is committed, so no build is needed
+just to run it. Microphone input works here (use headphones).
+
+## Rebuild after changing firmware code
+
+Needs `clang` + `wasm-ld` (LLVM 15+) and `python3`. No Emscripten, no ESP-IDF.
+On Windows use LLVM from https://releases.llvm.org or MSYS2, or run it in WSL / a cloud session.
+
+```bash
+./sim/build.sh               # -> sim/web/vstorm.wasm (fetches LVGL v8.4.0 into sim/.deps once)
+node sim/tools/bundle.mjs    # -> sim/dist/vstorm-console.html, one file you can send to anyone
+```
+
+## Scripted screenshots (no browser)
+
+```bash
+node sim/tools/headless.mjs sim/tools/tour.txt out/
+```
+Script commands: `size W H`, `wait MS`, `tap X Y`, `drag X1 Y1 X2 Y2`,
+`boot click|lock|reset`, `signal AMPLITUDE MS`, `shot NAME`. Every shot prints LVGL heap use.
+This is the loop for UI work: edit `ui.c` → `build.sh` → run a script → look at the PNGs.
+
+## Limits
+
+- Timing is not the device's: no SPI flush cost, no FreeRTOS tasks. Check performance on hardware.
+- Touch is a mouse, not the AXS5106; the IMU isn't simulated (the UI doesn't use it yet).
+- Audio rate is 16 kHz like the firmware when the browser allows it; otherwise the DSP runs
+  at the browser's rate (shown under Readouts).
+- Hosted (claude.ai) copies can't use the microphone or save WAVs; run it locally for those.
