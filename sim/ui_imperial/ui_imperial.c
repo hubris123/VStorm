@@ -2822,9 +2822,26 @@ static bool was_keyed;
 static float boost = 1.0f;
 
 /* 40 ms: scope, meter, TX/CLIP, frame colour, LIVE state */
+/* MUTED pulses slowly (full -> 30 % -> full every 2 s) so it's obvious the voice isn't
+ * going out; steady when LIVE. Only the label redraws. */
+static void mute_pulse(void)
+{
+    static lv_opa_t shown = LV_OPA_COVER;
+    lv_opa_t o = LV_OPA_COVER;
+    if (audio_is_muted() && lv_scr_act() == con_main.scr) {
+        float ph = (lv_tick_get() % 2000) / 2000.0f;
+        o = (lv_opa_t)(255 * (0.65f + 0.35f * cosf(ph * 2.0f * 3.14159265f)));
+    }
+    if (o == shown) return;
+    shown = o;
+    lv_obj_set_style_text_opa(cap_live.lbl, o, 0);
+    if (cap_live.sq_lbl) lv_obj_set_style_img_opa(cap_live.sq_lbl, o, 0);
+}
+
 static void fast_cb(lv_timer_t *t)
 {
     if (shown_muted != audio_is_muted()) live_refresh();
+    mute_pulse();
     reset_tick();
     console_t *c = active_console();
     if (!c) return;

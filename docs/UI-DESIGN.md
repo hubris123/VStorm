@@ -178,6 +178,7 @@ already show the raw voice).
 | Element | Idle | Keyed while MUTED | Keyed while LIVE (transmitting) |
 |---|---|---|---|
 | Scope frame | grey | **amber** | **red** (with a soft glow) |
+| MUTED (LIVE key, main screen) | the word MUTED pulses slowly (full -> 30 % -> full every 2 s) while muted; steady when LIVE | | |
 | Key-up | - | plays first, then the voice fades in 40 ms after its click (43-133 ms, avg 66 ms), like a real radio | same |
 | Voice trace (scopes, tall scope, bar graph) | **grey** while the gate is shut: the voice is heard but is below the VOX cut-off, so it isn't going out | trace colour | trace colour |
 | Scomp rings | slow drift, random reversals | ~1.15× speed | ~1.5× speed; reversals continue |
