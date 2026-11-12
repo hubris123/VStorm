@@ -256,7 +256,7 @@ def notched_frame(sc, x0, y0, x1, y1, col="#8A8A8A", n=12):
     sc.line([(x0, y0 + n), (x0 + n, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0 + n)], col, 2)
 
 
-def scope(sc, x0, y0, x1, y1, col, wave, phase=0):
+def scope(sc, x0, y0, x1, y1, col, wave, phase=0, frame_col="#8A8A8A", trace=True):
     sc.rect(x0, y0, x1, y1, fill=PANEL, outline=FRAME)
     for k in range(1, 4):
         yy = y0 + (y1 - y0) * k / 4
@@ -264,12 +264,17 @@ def scope(sc, x0, y0, x1, y1, col, wave, phase=0):
     for k in range(1, 6):
         xx = x0 + (x1 - x0) * k / 6
         sc.line([(xx, y0), (xx, y1)], "#1E2429", 1)
-    pts = []
-    n = len(wave)
-    for i, v in enumerate(wave):
-        pts.append((x0 + 3 + (x1 - x0 - 6) * i / (n - 1), y1 - 4 - (y1 - y0 - 8) * v / 100))
-    sc.line(pts, col, 2)
-    notched_frame(sc, x0 - 3, y0 - 3, x1 + 3, y1 + 3)
+    if trace:
+        pts = []
+        n = len(wave)
+        for i, v in enumerate(wave):
+            pts.append((x0 + 3 + (x1 - x0 - 6) * i / (n - 1), y1 - 4 - (y1 - y0 - 8) * v / 100))
+        sc.line(pts, col, 2)
+    if frame_col:
+        notched_frame(sc, x0 - 3, y0 - 3, x1 + 3, y1 + 3, frame_col)
+        if frame_col not in ("#8A8A8A",):       # keyed: frame glows in its colour
+            sc.g.line([(x * S, y * S) for x, y in [(x0 - 3, y0 + 9), (x0 + 9, y0 - 3), (x1 + 3, y0 - 3),
+                       (x1 + 3, y1 + 3), (x0 - 3, y1 + 3), (x0 - 3, y0 + 9)]], fill=hexrgb(frame_col, 200), width=6 * S)
 
 
 def seg_meter(sc, x, ybot, level, segs=12, w=36, h=8, red_from=9):
@@ -288,13 +293,18 @@ def small_lamp(sc, x, y, label, on, col=RED, f=None):
     sc.text(x - 5, y + 7, label, f or font(MONT, 13), LABEL, "rm")
 
 
-def voice_wave(n, seed, t=0):
+def voice_wave(n, seed, t=0, amp=None):
+    """Scrolling level trace. amp(k) -> 0..1 loudness at sample k (default: steady talking)."""
     rnd = random.Random(seed)
     out = []
     for i in range(n):
         k = i + t
+        a = 1.0
+        if amp is not None:          # trace shows the past: newest sample (frame t) at the right
+            k = t - (n - 1) + i
+            a = amp(k / 3.0)          # 3 scope samples per animation frame
         env = max(0, math.sin(k / 9.0)) ** 0.7 * (0.6 + 0.4 * math.sin(k / 23.0))
-        out.append(max(2, min(98, 8 + 70 * env + rnd.uniform(-6, 6))))
+        out.append(max(2, min(98, 6 + 70 * env * a + rnd.uniform(-5, 5) * max(0.3, a))))
     return out
 
 
@@ -320,12 +330,18 @@ def ticker(sc, x, y, tk, f, col):
 
 
 # ---------------- screens ----------------
-def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=None, level=62, tk=None, rot=None):
+def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=None, level=62, tk=None,
+                rot=None, keyed=None, wave=None):
+    """keyed: VOX gate open. Scope frame turns red when keyed + LIVE (transmitting),
+    amber when keyed but MUTED (the mic hears you, nothing goes out)."""
+    if keyed is None:
+        keyed = level > 22
+    frame_col = (RED if live else AMBER) if keyed else "#8A8A8A"
     sc = Screen()
     sc.text(46, 30, "TK-421", font(AURENG, 26), RED, "lm")
-    small_lamp(sc, 252, 22, "TX", level > 22)
+    small_lamp(sc, 252, 22, "TX", keyed and live)
     small_lamp(sc, 316, 22, "CLIP", False)
-    scope(sc, 18, 62, 288, 176, BLUE, voice_wave(60, 3, t))
+    scope(sc, 18, 62, 288, 176, BLUE, wave or voice_wave(60, 3, t), frame_col=frame_col)
     seg_meter(sc, 306, 178, level)
     lamps(sc, 24, 196, lamp_states or ["blue", "grey", "orange", "grey", "red", "blue", "orange"], lamp_opas)
     ticker(sc, 118, 198, tk or Ticker(4, 1), font(AUREB, 13), mix(AMBER, "#000000", 0.35))
@@ -337,6 +353,53 @@ def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=N
     else:
         key(sc, 248, 304, 104, 114, "MUTED", RED, sub="TAP FOR LIVE")
     return sc
+
+
+# ---------------- background (static) layer vs live layer ----------------
+# Everything that never changes on the main screen is baked into one 368x448 background
+# image (the default "skin"); only the parts in MAIN_LIVE are LVGL objects drawn on top.
+MAIN_LIVE = [
+    ("callsign", 44, 14, 210, 46), ("TX lamp", 251, 21, 267, 37), ("CLIP lamp", 315, 21, 331, 37),
+    ("scope trace", 19, 63, 287, 175), ("scope frame (keyed colour)", 13, 57, 293, 181),
+    ("level meter", 305, 44, 343, 179), ("lamp cluster", 23, 195, 105, 291),
+    ("readout text", 116, 192, 238, 290), ("Scomp rings", 245, 199, 335, 289),
+    ("lock cover + switch", 28, 310, 108, 404), ("SYS cap", 142, 314, 226, 408),
+    ("LIVE/MUTED cap", 258, 314, 342, 408),
+]
+
+
+def main_background():
+    """Static layer only: panel art the live widgets sit in front of."""
+    sc = Screen()
+    for x, label in ((247, "TX"), (311, "CLIP")):
+        sc.text(x, 29, label, font(MONT, 13), LABEL, "rm")
+    scope(sc, 18, 62, 288, 176, BLUE, [], trace=False, frame_col=None)
+    for i in range(12):                                     # unlit meter wells
+        sc.rect(306, 178 - i * 11 - 8, 342, 178 - i * 11, fill="#07090B")
+    sc.d.ellipse(sc.b(290 - 52, 244 - 52, 290 + 52, 244 + 52), outline="#22272B", width=2 * S)
+    for k in range(24):
+        a = math.radians(k * 15)
+        sc.line([(290 + 47 * math.cos(a), 244 + 47 * math.sin(a)),
+                 (290 + 51 * math.cos(a), 244 + 51 * math.sin(a))], "#2E3438", 1)
+    for x in (16, 132, 248):                                # key housings with empty cap wells
+        housing(sc, x, 304, 104, 114)
+        sc.d.rounded_rectangle(sc.b(x + 11, 315, x + 93, 407), radius=CAP_R * S, fill="#07090B")
+    sc.text(68, 405, "LOCK", font(MONT, 13), LABEL, "mm")
+    return sc
+
+
+def layers_view():
+    """Full screen, dimmed, with every live (redrawn) area outlined and named."""
+    full = main_screen(live=True, level=70).finish()
+    dim = Image.blend(full, Image.new("RGB", full.size, (0, 0, 0)), 0.55)
+    d = ImageDraw.Draw(dim)
+    pad = 14 * S
+    f = ImageFont.truetype(MONT, 11 * S)
+    for name, x0, y0, x1, y1 in MAIN_LIVE:
+        box = [pad + x0 * S, pad + y0 * S, pad + x1 * S, pad + y1 * S]
+        d.rectangle(box, outline=(255, 64, 200), width=2 * S)
+        d.text((box[0] + 3 * S, box[1] + 2 * S), name, font=f, fill=(255, 140, 225))
+    return dim
 
 
 def lock_screen():
@@ -467,6 +530,8 @@ def main():
     ]
     for name, im, _ in shots:
         im.save(os.path.join(out, name + ".png"))
+    main_background().finish().save(os.path.join(out, "07_main_background_layer.png"))
+    layers_view().save(os.path.join(out, "08_main_live_areas.png"))
 
     # contact sheet
     tw, th = shots[0][1].size
@@ -478,30 +543,51 @@ def main():
         sd.text((x + 10, y + th + 14), cap, font=ImageFont.truetype(MONT, 30), fill="#C9CDD0")
     sheet.save(os.path.join(out, "00_contact_sheet.png"))
 
-    # animated main screen: lamps drift + red pulse fade, scomp link spins, scope scrolls
+    # animated main screen: idle -> talking (muted) -> BOOT -> talking LIVE -> quiet.
+    # Reactions follow the VOX gate, ramped (not per syllable): rings spin up, lamps change
+    # faster with a burst at key-up, a new readout line per key-up, scope frame amber/red.
     rnd = random.Random(7)
     states = ["blue", "grey", "orange", "grey", "red", "blue", "orange"]
     frames = []
     tk = Ticker(4, 1)
-    # Scomp link rings: each has its own speed (deg/frame) and randomly reverses or changes
-    # pace, like fake_knob_timer_cb in firmware3. Forced changes here so the short loop shows it.
     ang = [0.0, 90.0, 0.0]
     spd = [4.0, -8.0, 18.0]
-    changes = {18: (0, -6.0), 30: (2, -14.0), 44: (1, 5.0), 58: (0, 3.0), 66: (2, 20.0)}
-    for f in range(72):
-        if f in changes:
-            ring, v = changes[f]
-            spd[ring] = v
-        ang = [a + v for a, v in zip(ang, spd)]
-        if f % 14 == 13:          # one readout line changes about every 1.5 s
+    reversals = {14: 0, 52: 2, 70: 1, 88: 0}
+    boost = 1.0
+    N = 100
+    talk = lambda k: (20 <= k < 40) or (46 <= k < 78)        # when the user is speaking
+    amp = lambda k: 1.0 if talk(k) else 0.08
+    cap_font = ImageFont.truetype(MONT, 15)
+    was_keyed = False
+    for f in range(N):
+        live = f >= 43
+        keyed = talk(f) or (f < 82 and talk(f - 4))           # ~350 ms VOX hang after speech
+        if f in reversals:
+            spd[reversals[f]] *= -1
+        target = (2.6 if live else 1.4) if keyed else 1.0
+        boost += (target - boost) * (0.35 if target > boost else 0.12)   # spin up fast, wind down slow
+        ang = [a + v * boost for a, v in zip(ang, spd)]
+        if keyed and not was_keyed:                           # key-up: lamp burst + new readout line
+            for j in rnd.sample(range(7), 3 if live else 1):
+                states[j] = rnd.choice([c for c in LAMP if c != states[j]])
             tk.step()
-        if f % 12 == 11:
+        elif f % (3 if (keyed and live) else 14) == 2:
             j = rnd.randrange(7)
             states[j] = rnd.choice([c for c in LAMP if c != states[j]])
-        opas = [(0.45 + 0.55 * abs(math.sin((f + i * 5) / 7.6))) if s == "red" else 1 for i, s in enumerate(states)]
-        im = main_screen(live=f >= 36, t=f, rot=tuple(ang), lamp_states=list(states), lamp_opas=opas,
-                         level=int(40 + 35 * abs(math.sin(f / 5))), tk=tk).finish()
-        frames.append(im.resize((im.width // 2, im.height // 2), Image.LANCZOS))
+        if not keyed and f % 16 == 15:
+            tk.step()
+        was_keyed = keyed
+        opas = [(0.45 + 0.55 * abs(math.sin((f + i * 5) / 7.6))) if st == "red" else 1 for i, st in enumerate(states)]
+        level = int(20 + 60 * abs(math.sin(f / 3.3))) if talk(f) else 4
+        im = main_screen(live=live, t=f, rot=tuple(ang), lamp_states=list(states), lamp_opas=opas,
+                         level=level, tk=tk, keyed=keyed, wave=voice_wave(60, 3, f * 3, amp)).finish()
+        im = im.resize((im.width // 2, im.height // 2), Image.LANCZOS)
+        cap = ("idle · muted" if f < 20 else "talking · MUTED: amber frame, mild spin-up" if f < 43
+               else "talking · LIVE: red frame, TX lamp, faster" if keyed else "quiet · winding down")
+        frame = Image.new("RGB", (im.width, im.height + 30), "#0D0F11")
+        frame.paste(im, (0, 0))
+        ImageDraw.Draw(frame).text((12, im.height + 7), cap, font=cap_font, fill="#C9CDD0")
+        frames.append(frame)
     frames[0].save(os.path.join(out, "main_alive.gif"), save_all=True, append_images=frames[1:],
                    duration=110, loop=0)
     print("wrote", len(shots), "screens, contact sheet, main_alive.gif to", out)

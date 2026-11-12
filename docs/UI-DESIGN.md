@@ -128,6 +128,46 @@ that is why the callsign screen becomes one-character-at-a-time.
 - Key press: instant fill, 80 ms release.
 - Respect frame rate: the SH8601 path redraws over QSPI; keep animated areas small.
 
+## 6a. Reacting to the voice (VOX keyed)
+
+Trigger is the **VOX gate** (open while speaking + ~350 ms hang), not the raw level, so it follows
+speech, not room noise, and lines up with the key-up / key-down clicks. Changes **ramp**:
+spin up in ~0.5 s, wind down over 1–2 s. Nothing flashes per syllable (the meter and scope
+already show the raw voice).
+
+| Element | Idle | Keyed while MUTED | Keyed while LIVE (transmitting) |
+|---|---|---|---|
+| Scope frame | grey | **amber** | **red** (with a soft glow) |
+| Scomp rings | slow drift, random reversals | ~1.4× speed | ~2.5× speed, speed loosely follows smoothed level; reversals continue |
+| Lamp cluster | one change every 20–40 s | unchanged, one lamp flips at key-up | a change every 1–3 s, burst of 2–3 lamps at key-up |
+| TX lamp (real) | off | off | steady red |
+| Readout text | one line every few s | — | new line at each key-up ("logging the transmission") |
+
+Demo: `design/mockups/main_alive.gif` (idle → talking muted → BOOT → talking LIVE → quiet).
+
+## 6b. Rendering: background image + live layer
+
+To keep redraws cheap on the SH8601 QSPI panel:
+- **Background layer** — every static part of a screen (key housings + screws + empty cap
+  wells, scope panel + grid, meter wells, Scomp socket plate + ticks, fixed labels like TX /
+  CLIP / LOCK) is one pre-rendered 368 × 448 RGB565 image (≈ 330 KB). It is the default
+  **skin**: later skins replace this image only.
+- **Live layer** — only what changes is an LVGL object on top: callsign, TX/CLIP lamps, scope
+  trace and frame, meter segments, lamp cluster, readout text, Scomp rings, lock cover/switch,
+  key caps (pressed / lit). See `design/mockups/08_main_live_areas.png`.
+- A change redraws only its own rectangle; behind it LVGL copies the matching patch of the
+  background (a straight copy) instead of re-drawing gradients, rounded corners and glows.
+- **Key caps as images**: off / lit / pressed are small pre-drawn images; a state change is one
+  copy. Glows are baked into the lit image, never drawn live on animated objects.
+- **Rates**: rings ≤ 20 updates/s, scope 25/s (40 ms), lamps ≤ 10/s, readout ≤ 1/s.
+- **Memory**: images live in flash and are copied to PSRAM at boot (ESP32-S3R8: 8 MB octal
+  PSRAM, enabled in firmware3). firmware3's sdkconfig says 4 MB flash with a 3 MB app, but the
+  board ships with 16 MB (Waveshare factory images are 16 MB) — raise the flash size and add an
+  assets partition when images go in.
+- Measure on hardware with LVGL's performance monitor (currently off in firmware3).
+- Background art is produced by `design/mockups/make_mockups.py`
+  (`07_main_background_layer.png` is the main screen's layer).
+
 ## 7. AMOLED care (static UI = burn-in risk)
 
 - Black background everywhere; static frames in `FRAME` grey, not white.
