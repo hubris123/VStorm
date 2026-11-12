@@ -549,7 +549,7 @@ def geom(c):
                  meter=("dots", 34, 56, 196, 11, 0) if meter == "dots" else ("vseg", 18, 60, 196, 26, 12))
     elif L == "hero":
         g = dict(scope=("rect", 166, 66, 350, 190), meter=("arc", 184, 282, 44, 0, 0),
-                 batt=("h", 166, 350, 199, 5), lamps=(84, 252), readout=(300, 260, 3, 26), rotor=(84, 128, 62))
+                 batt=("h", 166, 350, 199, 5), lamps=(68, 258), readout=(300, 260, 3, 26), rotor=(84, 128, 62))
     else:  # mirror
         g = dict(scope=("rect", 76, 62, 350, 176), batt=("v", 50, 49, 178, 8), lamps=(300, 250),
                  readout=(184, 246, 4, 29), rotor=(68, 250, 46),
@@ -557,7 +557,7 @@ def geom(c):
     if c["lamps"] == "switcher":
         g["switcher"] = (6, 4) if L == "hero" else (8, 5)
         if L == "hero":
-            g["lamps"] = (84, 256)
+            g["lamps"] = (68, 258)          # over LOCK, level with the gauge + readout
     return g
 
 

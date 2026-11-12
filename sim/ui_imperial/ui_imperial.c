@@ -249,6 +249,8 @@ typedef struct {
     uint16_t lamp_next[MAX_LAMPS];
     int nlamps;
     bool lamp_has_off;                    /* switcher / matrix: state 0 = unlit */
+    bool lamp_is_line;                    /* diamonds: each lamp is a thick 45-degree line */
+    lv_point_t dia_pts[9][2];
     /* readout */
     lv_obj_t *tick[MAX_TICK];
     uint8_t tick_word[MAX_TICK];
@@ -599,6 +601,19 @@ static lv_color_t lamp_color(console_t *c, int st)
     return CP(c->sk->lamp[st & 3]);
 }
 
+/* lamps are boxes, except diamonds, which are thick 45-degree line segments: a segment
+ * as long as it is wide is a square turned 45 degrees (no rotation feature needed) */
+static void lamp_paint(console_t *c, int i, lv_color_t col, lv_opa_t opa)
+{
+    if (c->lamp_is_line) {
+        lv_obj_set_style_line_color(c->lamp[i], col, 0);
+        lv_obj_set_style_line_opa(c->lamp[i], opa, 0);
+    } else {
+        lv_obj_set_style_bg_color(c->lamp[i], col, 0);
+        lv_obj_set_style_bg_opa(c->lamp[i], opa, 0);
+    }
+}
+
 static lv_obj_t *add_lamp(console_t *c, int x, int y, int w, int h, bool dome)
 {
     if (c->nlamps >= MAX_LAMPS) return NULL;
@@ -653,14 +668,19 @@ static void make_lamps(console_t *c)
         break;
     }
     case LAMPS_DIAMONDS:
+        c->lamp_is_line = true;
         for (int i = 0; i < 9; i++) {
             int x = cx + ((i % 3) - 1) * 26 + (((i / 3) % 2) ? 13 : 0) - 6, y = cy + ((i / 3) - 1) * 28;
-            lv_obj_t *o = add_lamp(c, x - 7, y - 7, 14, 14, false);
-            if (o) {
-                lv_obj_set_style_transform_angle(o, 450, 0);   /* square turned 45 deg = diamond */
-                lv_obj_set_style_transform_pivot_x(o, 7, 0);
-                lv_obj_set_style_transform_pivot_y(o, 7, 0);
-            }
+            /* segment (x-5,y-5)-(x+5,y+5): 14 px long, 14 px wide = diamond of half-width 10 */
+            c->dia_pts[i][0] = (lv_point_t){x - 5, y - 5};
+            c->dia_pts[i][1] = (lv_point_t){x + 5, y + 5};
+            lv_obj_t *o = pline(c->scr, c->dia_pts[i], 2, COL_PANEL, 14);
+            lv_obj_set_style_line_rounded(o, false, 0);
+            int k = c->nlamps++;
+            c->lamp[k] = o;
+            c->lamp_st[k] = rnd() % 4;
+            c->lamp_next[k] = lamp_delay(false);
+            lamp_paint(c, k, lamp_color(c, c->lamp_st[k]), LV_OPA_COVER);
         }
         break;
     case LAMPS_MATRIX: {
@@ -674,7 +694,7 @@ static void make_lamps(console_t *c)
 static void lamp_flip(console_t *c, int i)
 {
     c->lamp_st[i] = (c->lamp_st[i] + 1 + rnd() % 3) % 4;     /* always a different colour */
-    lv_obj_set_style_bg_color(c->lamp[i], lamp_color(c, c->lamp_st[i]), 0);
+    lamp_paint(c, i, lamp_color(c, c->lamp_st[i]), LV_OPA_COVER);
 }
 
 /* ---- readout (Aurebesh lines; line 0 can hold the secret temp) ---- */
@@ -1793,9 +1813,9 @@ static void lamp_cb(lv_timer_t *t)
             if (--c->lamp_next[i] == 0) { lamp_flip(c, i); c->lamp_next[i] = lamp_delay(busy); }
             if (c->lamp_st[i] == 2) {                                   /* slow red pulse, ~6 s */
                 int ph = (tick + i * 8) % 60, tri = ph < 30 ? ph : 60 - ph;
-                lv_obj_set_style_bg_opa(c->lamp[i], 120 + tri * 4, 0);
+                lamp_paint(c, i, lamp_color(c, 2), 120 + tri * 4);
             } else {
-                lv_obj_set_style_bg_opa(c->lamp[i], LV_OPA_COVER, 0);
+                lamp_paint(c, i, lamp_color(c, c->lamp_st[i]), LV_OPA_COVER);
             }
         }
         if (--c->tick_next <= 0) { tick_change(c); c->tick_next = 15 + rnd() % 16; }  /* 1.5-3 s */
