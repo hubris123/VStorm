@@ -220,7 +220,7 @@ typedef struct {
     lv_obj_t *tilt_v, *tilt_h;            /* tilt crosshair lines in the scope */
     float tilt_x, tilt_y, tilt_opa;
     lv_obj_t *t_word, *t_num, *t_unit;    /* secret temp: Aurebesh TEMP + TK-style digits + Aurebesh unit */
-    float temp_c;
+    int shown_batt, shown_temp;           /* what is on screen now: redraw only on change */
 } console_t;
 
 static console_t con_main, con_lock;
@@ -306,12 +306,48 @@ static void make_meter(console_t *c)
     for (int i = 0; i < METER_SEGS; i++)
         c->meter[i] = box(c->scr, 306, 178 - i * 11 - 8, 36, 8, COL_PANEL);
     c->batt = box(c->scr, BATT_X, BATT_TOP, 8, BATT_BOT - BATT_TOP, COL_GREEN);
+    c->shown_batt = -999;
+}
+
+/* Slow sensors are read rarely and cached: on the device each read is an I2C transaction,
+ * and neither battery charge nor board temperature changes quickly. Opening the Sensors
+ * page or flipping a toggle forces a fresh read. Tilt is read every frame (it animates). */
+#define BATT_PERIOD_MS 10000
+#define TEMP_PERIOD_MS 30000
+static int batt_cache = -1;
+static float temp_cache;
+static bool batt_valid, temp_valid, temp_ok;
+static uint32_t batt_t, temp_t;
+
+static void sensors_invalidate(void) { batt_valid = temp_valid = false; }
+
+static int batt_get(void)
+{
+    if (!batt_valid || lv_tick_elaps(batt_t) >= BATT_PERIOD_MS) {
+        batt_cache = ui_platform_battery();
+        batt_t = lv_tick_get();
+        batt_valid = true;
+    }
+    return batt_cache;
+}
+
+static bool temp_get(float *c)
+{
+    if (!temp_valid || lv_tick_elaps(temp_t) >= TEMP_PERIOD_MS) {
+        temp_ok = ui_platform_temp(&temp_cache);
+        temp_t = lv_tick_get();
+        temp_valid = true;
+    }
+    *c = temp_cache;
+    return temp_ok;
 }
 
 static void batt_update(console_t *c)
 {
-    int pct = ui_platform_battery();
-    if (!S.show_batt || pct < 0) { lv_obj_add_flag(c->batt, LV_OBJ_FLAG_HIDDEN); return; }
+    int pct = S.show_batt ? batt_get() : -1;
+    if (pct == c->shown_batt) return;                     /* nothing changed: no redraw */
+    c->shown_batt = pct;
+    if (pct < 0) { lv_obj_add_flag(c->batt, LV_OBJ_FLAG_HIDDEN); return; }
     lv_obj_clear_flag(c->batt, LV_OBJ_FLAG_HIDDEN);
     if (pct > 100) pct = 100;
     int h = (BATT_BOT - BATT_TOP) * pct / 100;
@@ -393,7 +429,17 @@ static void tick_place(console_t *c, int i)
 static void temp_update(console_t *c)
 {
     float tc = 0;
-    bool have = S.show_temp && ui_platform_temp(&tc);
+    bool have = S.show_temp && temp_get(&tc);
+    int key;                                               /* value + unit as shown */
+    if (have) {
+        float v = S.temp_f ? tc * 9.0f / 5.0f + 32.0f : tc;
+        int iv = (int)(v + (v < 0 ? -0.5f : 0.5f));
+        key = iv * 2 + (S.temp_f ? 1 : 0);
+    } else {
+        key = -100000;
+    }
+    if (key == c->shown_temp) return;                     /* unchanged: no redraw */
+    c->shown_temp = key;
     if (!have) {
         lv_obj_add_flag(c->t_word, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(c->t_num, LV_OBJ_FLAG_HIDDEN);
@@ -401,14 +447,11 @@ static void temp_update(console_t *c)
         lv_obj_clear_flag(c->tick[0], LV_OBJ_FLAG_HIDDEN);
         return;
     }
-    c->temp_c += (tc - c->temp_c) * 0.3f;                  /* settle, don't flicker */
     lv_obj_add_flag(c->tick[0], LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(c->t_word, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(c->t_num, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(c->t_unit, LV_OBJ_FLAG_HIDDEN);
-    float v = S.temp_f ? c->temp_c * 9.0f / 5.0f + 32.0f : c->temp_c;
-    int iv = (int)(v + (v < 0 ? -0.5f : 0.5f));
-    lv_label_set_text_fmt(c->t_num, "%d", iv);
+    lv_label_set_text_fmt(c->t_num, "%d", (key - (S.temp_f ? 1 : 0)) / 2);
     lv_label_set_text_static(c->t_unit, S.temp_f ? "F" : "C");
     lv_obj_update_layout(c->t_word);
     int w1 = lv_obj_get_width(c->t_word), w2 = lv_obj_get_width(c->t_num), w3 = lv_obj_get_width(c->t_unit);
@@ -435,7 +478,7 @@ static void make_ticker(console_t *c)
     c->t_word = aureb_label(c->scr, "TEMP", f_aureb13, COL_TICK);
     c->t_num = label(c->scr, "0", f_aureng20 ? f_aureng20 : &lv_font_montserrat_16, COL_TICK);   /* 20 px: digits 13 px tall = the Aurebesh letters as drawn */
     c->t_unit = aureb_label(c->scr, "F", f_aureb13, COL_TICK);
-    c->temp_c = 30;
+    c->shown_temp = -999999;
 }
 
 static void tick_change(console_t *c)
@@ -760,6 +803,7 @@ static void page_show(void)
         lv_label_set_text(cap_wide.sub, "TAP 5 TIMES TO WAKE");
         cap_style(&cap_wide, true);
     } else if (page == P_SENSORS) {
+        sensors_invalidate();                              /* fresh readings when opened */
         toggles_refresh();
         sensors_readout();
     } else {
@@ -801,6 +845,7 @@ static void toggle_cb(lv_event_t *e)
 {
     int i = (int)(intptr_t)lv_event_get_user_data(e);
     *tog_val(i) = !*tog_val(i);
+    sensors_invalidate();
     toggles_refresh();
     ui_platform_apply(&S);
 }
@@ -808,7 +853,7 @@ static void toggle_cb(lv_event_t *e)
 static void sensors_readout(void)
 {
     if (page != P_SENSORS) return;
-    int pct = ui_platform_battery();
+    int pct = batt_get();
     if (pct < 0) lv_label_set_text(sens_batt, "PWR  USB");
     else lv_label_set_text_fmt(sens_batt, "PWR  %d%%", pct);
     float x = 0, y = 0;
@@ -817,7 +862,7 @@ static void sensors_readout(void)
     else
         lv_label_set_text(sens_tilt, "TILT  --");
     float tc;
-    if (ui_platform_temp(&tc)) {
+    if (temp_get(&tc)) {
         float v = S.temp_f ? tc * 9.0f / 5.0f + 32.0f : tc;
         lv_label_set_text_fmt(sens_temp, "TEMP %d %s", (int)(v + 0.5f), S.temp_f ? "F" : "C");
     } else {

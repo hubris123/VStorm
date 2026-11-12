@@ -179,7 +179,7 @@ footer code { font: 12px var(--mono); color: var(--ink); }
           <label for="sTemp">Temp</label><input type="range" id="sTemp" min="0" max="60" value="31"><output id="oTemp">31°C</output>
         </div>
         <label class="chk"><input type="checkbox" id="sWander" checked> Wander (tilt drifts like a moving wearer)</label>
-        <p class="note">The board reads these from its power chip (AXP2101) and motion sensor (QMI8658, which also measures board temperature). Here you set them by hand. The battery bar turns yellow at 30 % and red at 15 %. Temp shows on the top readout line as Aurebesh TEMP + the number.</p>
+        <p class="note">The board reads these from its power chip (AXP2101) and motion sensor (QMI8658, which also measures board temperature). Here you set them by hand. The battery bar turns yellow at 30 % and red at 15 %. Temp shows on the top readout line as Aurebesh TEMP + the number. Like the device, the console reads temperature every 30 s and battery every 10 s, so slider changes take a moment to show (opening the Sensors page reads them at once).</p>
       </section>
 
       <section class="card" aria-labelledby="hRender" id="renderCard">

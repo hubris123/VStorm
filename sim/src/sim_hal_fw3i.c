@@ -15,12 +15,14 @@ bool audio_is_keyed(void) { return dsp_is_keyed(); }
 #define EXPORT(n) __attribute__((export_name(n)))
 static int s_batt = 78;
 static float s_tx, s_ty, s_temp = 31.0f;
+static int n_batt, n_temp, n_tilt;   /* read counters for tests */
 EXPORT("sim_set_temp") void sim_set_temp(float c) { s_temp = c; }
-bool ui_platform_temp(float *c) { *c = s_temp; return true; }
+bool ui_platform_temp(float *c) { n_temp++; *c = s_temp; return true; }
 EXPORT("sim_set_battery") void sim_set_battery(int pct) { s_batt = pct; }
 EXPORT("sim_set_tilt") void sim_set_tilt(float x, float y) { s_tx = x; s_ty = y; }
-int ui_platform_battery(void) { return s_batt; }
-bool ui_platform_tilt(float *x, float *y) { *x = s_tx; *y = s_ty; return true; }
+EXPORT("sim_dbg_reads") int sim_dbg_reads(int which) { return which == 0 ? n_batt : which == 1 ? n_temp : n_tilt; }
+int ui_platform_battery(void) { n_batt++; return s_batt; }
+bool ui_platform_tilt(float *x, float *y) { n_tilt++; *x = s_tx; *y = s_ty; return true; }
 
 void ui_platform_defaults(ui_settings_t *s)
 {
