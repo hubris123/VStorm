@@ -347,7 +347,7 @@ class Ticker:
 
 def secret_temp(sc, cy, value, unit, col):
     """'TEMP' + unit in Aurebesh, the number in the callsign's TK-style digits, centred on x 184"""
-    fw, fn = font(AUREB, 13), font(AURENG, 18)
+    fw, fn = font(AUREB, 14), font(AURENG, 22)   # digits as tall as the Aurebesh letters
     track, stretch = 0.22, 1.15
     w_word = (sum(fw.getlength(ch) for ch in "TEMP") + track * fw.size * 3) * stretch / S
     w_num = fn.getlength(str(value)) / S

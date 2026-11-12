@@ -427,7 +427,7 @@ static void make_ticker(console_t *c)
     }
     c->tick_next = 8;
     c->t_word = aureb_label(c->scr, "TEMP", f_aureb13, COL_TICK);
-    c->t_num = label(c->scr, "0", f_aureng18 ? f_aureng18 : &lv_font_montserrat_16, COL_TICK);
+    c->t_num = label(c->scr, "0", f_aureng22 ? f_aureng22 : &lv_font_montserrat_16, COL_TICK);   /* 22 px: digits 14 px tall = Aurebesh letters */
     c->t_unit = aureb_label(c->scr, "F", f_aureb13, COL_TICK);
     c->temp_c = 30;
 }
