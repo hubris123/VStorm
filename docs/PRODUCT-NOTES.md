@@ -16,7 +16,7 @@ another unit.
   fallback, so the device always boots to a working UI (no card, bad card, or bad file →
   default skin + a short "NO SKIN CARD" / "UNVERIFIED SKIN" notice).
 - **Every other skin is a `.vskin` file on the SD card**, which ships in the box preloaded with
-  the 20 Imperial skins. New skins = copy a file onto the card. No on-board flash is used or
+  the built-in Imperial skins (35 so far). New skins = copy a file onto the card. No on-board flash is used or
   written for skins.
 - **Card speed doesn't matter at runtime.** A skin (≈100–300 KB compressed) is read once,
   when selected or at boot, verified, decrypted and decompressed into PSRAM; all drawing then
@@ -105,8 +105,8 @@ signature           Ed25519 over header + key blob + payload
 
 ### Related
 
-- Skin concepts: `design/skins/concepts/` (20 designs) and the default skin `design/skins/default/`.
-- Size check: 20 skins ≈ 2–6 MB compressed on the card (any card is plenty); one unpacked
+- Skin concepts: `design/skins/concepts/` (20 designs), `design/skins/concepts2/` (15 free-layout designs) and the default skin `design/skins/default/`.
+- Size check: the 35 skins are ≈ 2.3 MB of lossless RLE art built in today; 35 skins ≈ 3–10 MB compressed on the card (any card is plenty); one unpacked
   skin ≈ 2 MB of the 8 MB PSRAM.
 - IP: no franchise names/logos/crest in shipped skins; Aurebesh only for free/personal packs
   (see `docs/UI-DESIGN.md` section 8 and HANDOFF).

@@ -2,16 +2,23 @@
 
 Fixed on every skin: the top bar (callsign, TX, CLIP) and the LOCK / SYS / LIVE keys
 (colour + key style may change). Everything in between is free: any mix of scopes, meters,
-lamps, readouts and rotors, plus new parts (bar graph, ring meter, waterfall, dual scope,
-big gauge, hex table, target view, tall scope, edge lamp strips).
+lamps, readouts and rotors, plus new parts (bar graph, ring meter, waterfall, big gauge,
+target view, tall scope, hex table, edge lamp strips).
 
 Rules: every skin has at least one live voice display; small parts in the row right above
-the keys are centred on the key centres (x 68 / 184 / 300); the secret temperature (88 F
-here) is hidden somewhere different on each skin.
+the keys are centred on the key centres (x 68 / 184 / 300); the secret temperature (88 F in
+the mock-ups) is hidden somewhere different on each skin.
+
+Each concept is a list of parts in the same form the device reads (skins.json "parts",
+see sim/ui_imperial/skin.h): ["kind", style, flags, g...]. flags 1 = holds the temp.
+Kinds starting with "_" are art only (drawn into the background, not live).
+The same list draws the mock-up (full), the background layers (static / lock) and the recipe.
 
     python3 design/skins/concepts/make_concepts2.py
-writes design/skins/concepts2/NN_name.png and sheet_3.png / sheet_4.png
+writes design/skins/concepts2/NN_name.png + sheet_3.png / sheet_4.png, and re-exports
+design/skins/packs/ (skins 0-20 from make_concepts.py, then these as skins 21-35).
 """
+import json
 import math
 import os
 import random
@@ -25,7 +32,9 @@ import make_concepts as mc  # noqa: E402
 
 m, S, f = mc.m, mc.S, mc.f
 OUT = os.path.join(HERE, "..", "concepts2")
+PACKS = os.path.join(HERE, "..", "packs")
 KEYX = (68, 184, 300)
+PIL2PX = 1.27            # mock-up font size -> device px (PIL 33 = the 42 px callsign)
 
 PAL = dict(mc.PAL)
 PAL.update({
@@ -50,6 +59,10 @@ PAL.update({
 })
 
 
+def live():
+    return not mc.STATIC
+
+
 def mix(a, b, t):
     return m.mix(a, b, t)
 
@@ -59,42 +72,42 @@ def level_series(n, seed):
     return [max(5, min(98, 30 + 55 * abs(math.sin(i / 2.3 + seed)) + rnd.uniform(-15, 15))) for i in range(n)]
 
 
-# ---------------- new parts ----------------
-def bargraph(sc, x0, y0, x1, y1, p, n=16, seed=1, label=None):
-    """voice bar graph: n vertical segmented bars (recent level history)"""
+# ---------------- new parts (static bits always, live bits only in the mock-up) ----------------
+def bargraph(sc, x0, y0, x1, y1, p, n=16, seed=1):
+    """voice bar graph: n segmented bars of recent level (device: a canvas, same geometry)"""
     sc.rect(x0, y0, x1, y1, fill="#06080A")
     bw = (x1 - x0 - 8) / n
     seg = 5
-    vals = level_series(n, seed)
+    nseg = int((y1 - y0 - 8) / seg)
+    vals = level_series(n, seed) if live() else [0] * n
     for i, v in enumerate(vals):
         bx = x0 + 4 + i * bw
-        hgt = (y1 - y0 - 8)
-        nseg = int(hgt / seg)
         lit = int(nseg * v / 100)
         for k in range(nseg):
             yy = y1 - 4 - (k + 1) * seg
             col = (p["accent"] if k > nseg * 0.78 else p["trace"]) if k < lit else "#0E1215"
             sc.rect(bx + 1, yy + 1, bx + bw - 2, yy + seg - 1, fill=col)
     m.notched_frame(sc, x0 - 3, y0 - 3, x1 + 3, y1 + 3, p["frame"])
-    if label:
-        sc.text(x1 - 4, y1 + 9, label, f(m.MONT, 11), p["tick"], "rm")
 
 
 def ring_meter(sc, cx, cy, r, p, level, n=28, w=6, gap_deg=4):
-    """segmented ring around a rotor: lit clockwise from the bottom by voice level"""
+    """segmented ring around a rotor: lit clockwise from the lower left by voice level"""
     step = 300 / n
     for i in range(n):
         a0 = 120 + i * step
-        lit = i < level * n / 100
+        lit = live() and i < level * n / 100
         col = (p["accent"] if i > n * 0.8 else p["trace"]) if lit else "#121619"
         sc.arc(cx, cy, r, a0, a0 + step - gap_deg, col, w)
 
 
-def waterfall(sc, x0, y0, x1, y1, p, t, rows=9, label=None):
+def waterfall(sc, x0, y0, x1, y1, p, t, rows=9):
     """scrolling voice waterfall: stacked traces, newest bright at the bottom"""
     sc.rect(x0, y0, x1, y1, fill="#06080A")
     for k in range(1, 6):
         sc.line([(x0 + (x1 - x0) * k / 6, y0), (x0 + (x1 - x0) * k / 6, y1)], p["grid"], 1)
+    m.notched_frame(sc, x0 - 3, y0 - 3, x1 + 3, y1 + 3, p["frame"])
+    if not live():
+        return
     pitch = (y1 - y0 - 16) / rows
     for r_ in range(rows):
         base = y0 + 14 + r_ * pitch
@@ -103,15 +116,11 @@ def waterfall(sc, x0, y0, x1, y1, p, t, rows=9, label=None):
         col = mix("#000000", p["trace"], 0.25 + 0.75 * (r_ / (rows - 1)))
         pts = [(x0 + 3 + (x1 - x0 - 6) * i / 49, base - (v / 100) * pitch * 1.6 * amp) for i, v in enumerate(wave)]
         sc.line(pts, col, 2 if r_ == rows - 1 else 1)
-    m.notched_frame(sc, x0 - 3, y0 - 3, x1 + 3, y1 + 3, p["frame"])
-    if label:
-        sc.text(x0 + 6, y0 + 7, label, f(m.MONT, 11), p["tick"], "lm")
 
 
-def big_gauge(sc, cx, cy, r, p, level, scale_temp=False, plate=None):
-    """large semicircle gauge; optional temp hidden as the pivot plate number"""
+def big_gauge(sc, cx, cy, r, p, level, plate=False):
+    """large semicircle gauge; the plate under the pivot can hold the temp"""
     sc.arc(cx, cy, r, 180, 360, "#151A1F", 14)
-    sc.arc(cx, cy, r, 180, 180 + 180 * level / 100, p["trace"], 14)
     sc.arc(cx, cy, r - 18, 180, 360, mix(p["frame"], "#000000", 0.4), 2)
     for i in range(11):
         a = math.radians(180 + i * 18)
@@ -119,29 +128,35 @@ def big_gauge(sc, cx, cy, r, p, level, scale_temp=False, plate=None):
         sc.line([(cx + (r + 4) * ca, cy + (r + 4) * sa), (cx + (r + 12) * ca, cy + (r + 12) * sa)], p["frame"], 2)
         if i % 2 == 0:
             sc.text(cx + (r - 30) * ca, cy + (r - 30) * sa, str(i * 10), f(m.MONT, 11), p["tick"], "mm")
+    if plate:
+        sc.d.rounded_rectangle(sc.b(cx - 22, cy + 10, cx + 22, cy + 28), radius=3 * S, fill="#0C0F12",
+                               outline=mix(p["frame"], "#000000", 0.3), width=S)
+    if not live():
+        return
+    sc.arc(cx, cy, r, 180, 180 + 180 * level / 100, p["trace"], 14)
     a = math.radians(180 + 180 * level / 100)
     sc.line([(cx, cy), (cx + (r - 22) * math.cos(a), cy + (r - 22) * math.sin(a))], p["accent"], 3)
     sc.d.ellipse(sc.b(cx - 9, cy - 9, cx + 9, cy + 9), fill=p["frame"])
     if plate:
-        sc.d.rounded_rectangle(sc.b(cx - 22, cy + 10, cx + 22, cy + 28), radius=3 * S, fill="#0C0F12",
-                               outline=mix(p["frame"], "#000000", 0.3), width=S)
-        sc.text(cx, cy + 19, plate, f(m.AURENG, 15), p["tick"], "mm")
+        sc.text(cx, cy + 19, "88", f(m.AURENG, 15), p["tick"], "mm")
 
 
-def hex_table(sc, x0, y0, cols, rows, p, seed, temp_cell=None, cw=40, rh=20):
-    """columns of hex readings; temp_cell=(col,row) shows the temp in hex (88 F -> 58)"""
+def hex_table(sc, x0, y0, cols, rows, cw, rh, p, seed, temp_cell=None):
+    """columns of hex readings (all live); temp_cell shows the temp in hex (88 F -> 58)"""
+    if not live():
+        return
     rnd = random.Random(seed)
     for r_ in range(rows):
         for c in range(cols):
             txt = "%02X" % rnd.randrange(256)
-            if temp_cell == (c, r_):
-                txt = "58"                                     # 0x58 = 88: the secret temp
+            if temp_cell == r_ * cols + c:
+                txt = "58"
             col = p["tick"] if (r_ + c) % 3 else mix(p["tick"], "#FFFFFF", 0.25)
             sc.text(x0 + c * cw, y0 + r_ * rh, txt, f(m.MONT, 14), col, "lm")
 
 
-def target_view(sc, b, p, t, side=None):
-    """viewport with locking brackets, crosshair and range ticks; trace inside"""
+def target_view(sc, b, p, t):
+    """viewport with crosshair and range ticks (art); trace + locking brackets (live)"""
     x0, y0, x1, y1 = b
     sc.rect(x0, y0, x1, y1, fill="#06080A")
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
@@ -149,32 +164,31 @@ def target_view(sc, b, p, t, side=None):
     sc.line([(cx, y0), (cx, y1)], p["grid"], 1)
     for k in range(-6, 7):
         sc.line([(cx + k * 20, cy - 3), (cx + k * 20, cy + 3)], p["grid"], 1)
+    mc.FRAMES["brackets"](sc, b, p)
+    if not live():
+        return
     wave = m.voice_wave(60, 11, t)
     pts = [(x0 + 3 + (x1 - x0 - 6) * i / 59, y1 - 6 - (y1 - y0 - 12) * v / 100 * 0.6) for i, v in enumerate(wave)]
     sc.line(pts, mix("#000000", p["trace"], 0.7), 2)
-    w2, h2 = 46, 30                                          # locking brackets (shrink when keyed)
+    w2, h2 = 46, 30                                          # brackets close in while talking
     for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
         ex, ey = cx + sx * w2, cy + sy * h2
         sc.line([(ex - sx * 14, ey), (ex, ey), (ex, ey - sy * 12)], p["accent"], 3)
-    frame = mc.FRAMES["brackets"]
-    frame(sc, b, p)
-    if side:
-        sc.text(x0 + 6, y1 - 8, side, f(m.MONT, 11), p["tick"], "lm")
 
 
-def vscope(sc, x0, y0, x1, y1, p, t, frame="notched", label=None):
+def vscope(sc, x0, y0, x1, y1, p, t, frame="notched"):
     """tall scope: the trace runs top to bottom, level sideways"""
     sc.rect(x0, y0, x1, y1, fill="#06080A")
     for k in range(1, 3):
         sc.line([(x0 + (x1 - x0) * k / 3, y0), (x0 + (x1 - x0) * k / 3, y1)], p["grid"], 1)
     for k in range(1, 8):
         sc.line([(x0, y0 + (y1 - y0) * k / 8), (x1, y0 + (y1 - y0) * k / 8)], p["grid"], 1)
+    mc.FRAMES[frame](sc, (x0, y0, x1, y1), p)
+    if not live():
+        return
     wave = m.voice_wave(60, 13, t)
     pts = [(x0 + 4 + (x1 - x0 - 8) * v / 100, y0 + 3 + (y1 - y0 - 6) * i / 59) for i, v in enumerate(wave)]
     sc.line(pts, p["trace"], 2)
-    mc.FRAMES[frame](sc, (x0, y0, x1, y1), p)
-    if label:
-        sc.text((x0 + x1) / 2, y1 + 11, label, f(m.MONT, 11), p["tick"], "mm")
 
 
 def edge_strip(sc, x, y0, y1, p, seed, w=10, h=7, gap=5):
@@ -182,196 +196,270 @@ def edge_strip(sc, x, y0, y1, p, seed, w=10, h=7, gap=5):
     y = y0
     while y + h <= y1:
         s_ = rnd.randrange(5)
-        col = p["lamps"][s_ % 4] if s_ < 4 else "#151A1F"
+        col = (p["lamps"][s_ % 4] if s_ < 4 else "#151A1F") if live() else "#151A1F"
         sc.rect(x, y, x + w, y + h, fill=col)
         y += h + gap
 
 
-def small_temp(sc, x, y, text, p, anchor="mm", size=13, font=None):
-    sc.text(x, y, text, font or f(m.AURENG, size), p["tick"], anchor)
+def temp_tag(sc, x, y, anchor, px, prefix, p):
+    if not live():
+        return
+    size = round(px / PIL2PX)
+    text = ("", "RNG ", "CH ")[prefix] + "88"
+    font = f(m.MONT, size) if prefix else f(m.AURENG, size)
+    sc.text(x, y, text, font, p["tick"], ("mm", "rm", "lm")[anchor])
+
+
+def readout2(sc, cx, cy, p, seed, lines, pitch, temp):
+    """Aurebesh readout; line 0 holds the temp only when this skin keeps it there"""
+    if not live():
+        return
+    if temp:
+        mc.readout(sc, cx, cy, p, seed, lines=lines, pitch=pitch)
+        return
+    rnd = random.Random(seed)
+    for y in mc.readout_rows(cy, lines, pitch):
+        sc.text(cx, y, rnd.choice(mc.WORDS), f(m.AUREB, 13), p["tick"], "mm")
+
+
+def lamps(sc, kind, g, p, seed):
+    cx, cy = g[0], g[1]
+    cols, rows, r = (list(g[2:5]) + [0, 0, 0])[:3]
+    if kind == "domes":
+        mc.lamps_domes(sc, cx, cy, p, seed, cols=cols or 3, rows=rows or 3, r=r or 11)
+    elif kind == "switcher":
+        mc.lamps_switcher(sc, cx, cy, p, seed, cols=cols or 8, rows=rows or 5)
+    else:
+        mc.LAMPS[kind](sc, cx, cy, p, seed)
+
+
+def meter(sc, kind, g, p):
+    if kind == "vseg":
+        mc.meter_vseg(sc, g[0], g[1], g[2], p, 66, w=g[3], n=g[4])
+    elif kind == "dots":
+        mc.meter_dots(sc, g[0], g[1], g[2], p, 66, n=g[3])
+    elif kind == "twin":
+        mc.meter_twin(sc, g[0], g[1], g[2], p, 70)
+    elif kind == "hseg":
+        mc.meter_hseg(sc, g[0], g[1], g[2], p, 60, h=g[3], n=g[4])
+    else:
+        mc.meter_arc(sc, g[0], g[1], g[2], p, 60)
+
+
+def draw_part(sc, p, pt, t, seed):
+    kind, style, flags, g = pt[0], pt[1], pt[2], list(pt[3:])
+    if kind == "scope":
+        mc.scope_rect(sc, g[:4], p, style, t + seed % 7 * 3, tilt=(12, -6) if seed % 2 else (-14, 8))
+    elif kind == "round":
+        mc.scope_round(sc, g[0], g[1], g[2], p, t)
+    elif kind == "vscope":
+        vscope(sc, *g[:4], p, t, frame=style)
+    elif kind == "target":
+        target_view(sc, g[:4], p, t)
+    elif kind == "waterfall":
+        waterfall(sc, *g[:4], p, t, rows=g[4])
+    elif kind == "meter":
+        meter(sc, style, g, p)
+    elif kind == "batt":
+        (mc.batt_v(sc, g[0], g[1], g[2], w=g[3]) if style == "v" else mc.batt_h(sc, g[0], g[1], g[2], h=g[3]))
+    elif kind == "lamps":
+        lamps(sc, style, g, p, seed)
+    elif kind == "edge":
+        edge_strip(sc, g[0], g[1], g[2], p, seed, w=g[3])
+    elif kind == "readout":
+        readout2(sc, g[0], g[1], p, seed, g[2], g[3], flags & 1)
+    elif kind == "rotor":
+        (mc.rotor_twin(sc, g[0], g[1], p, t) if style == "twin" else mc.ROTORS[style](sc, g[0], g[1], p, t, r=g[2]))
+    elif kind == "bars":
+        bargraph(sc, *g[:4], p, n=g[4], seed=seed)
+    elif kind == "ring":
+        ring_meter(sc, g[0], g[1], g[2], p, 68, n=g[3], w=g[4])
+    elif kind == "gauge":
+        big_gauge(sc, g[0], g[1], g[2], p, 64, plate=bool(flags & 1))
+    elif kind == "hex":
+        hex_table(sc, *g[:6], p, seed, temp_cell=style if flags & 1 else None)
+    elif kind == "temp":
+        temp_tag(sc, g[0], g[1], g[2], g[3], style, p)
+    elif kind == "_frame":                                   # art only: a notched frame
+        m.notched_frame(sc, *g[:4], p["frame"])
+    elif kind == "_text":                                    # art only: small fixed labels
+        x0, y, dx, size, *labels = g
+        for i, s_ in enumerate(labels):
+            sc.text(x0 + i * dx, y, s_, f(m.MONT, size), p["tick"], "mm")
+    else:
+        raise ValueError(kind)
+
+
+def T(px):
+    """font px for a temp tag drawn at mock-up size px"""
+    return round(px * PIL2PX)
 
 
 # ---------------- the 15 concepts ----------------
-def c22(sc, p, t):          # Snow Patrol: big gauge hero
-    big_gauge(sc, 184, 176, 112, p, 64, plate="88")
-    mc.batt_h(sc, 100, 268, 212, h=4)
-    mc.lamps_domes(sc, 68, 262, p, 22, cols=3, rows=2)
-    mc.readout(sc, 184, 262, p, 22, lines=3, pitch=24)
-    mc.rotor_scomp(sc, 300, 262, p, t, r=38)
-
-
-def c23(sc, p, t):          # Desert Outpost: dual scopes + full-width segment meter
-    mc.scope_rect(sc, (18, 62, 178, 158), p, "double", t)
-    mc.scope_rect(sc, (190, 62, 350, 158), p, "double", t + 9, tilt=(-14, 8))
-    mc.meter_hseg(sc, 18, 350, 172, p, 60)
-    mc.batt_h(sc, 18, 350, 188)
-    mc.lamps_pills(sc, 68, 252, p, 23)
-    mc.readout(sc, 184, 252, p, 23, lines=4, pitch=28)
-    mc.rotor_gear(sc, 300, 252, p, t, r=42)
-
-
-def c24(sc, p, t):          # Forest Scout: tall scope left, bar graph right
-    vscope(sc, 18, 62, 110, 298, p, t, label=None)
-    bargraph(sc, 132, 62, 350, 176, p, n=14, seed=24, label="88")      # temp as the graph's scale tag
-    mc.batt_v(sc, 119, 62, 298, w=4)
-    mc.lamps_matrix(sc, 184, 250, p, 24)
-    mc.rotor_radar(sc, 300, 250, p, t, r=44)
-
-
-def c25(sc, p, t):          # Dark Ops: waterfall
-    waterfall(sc, 18, 62, 350, 196, p, t, label="88")                   # temp as the corner channel tag
-    mc.batt_h(sc, 18, 350, 206, h=4)
-    mc.lamps_switcher(sc, 68, 262, p, 25, cols=6, rows=4)
-    mc.readout(sc, 184, 262, p, 25, lines=3, pitch=24)
-    mc.rotor_twin(sc, 300, 258, p, t)
-
-
-def c26(sc, p, t):          # Lava Forge: ring meter round a big rotor, edge lamp strips
-    edge_strip(sc, 18, 60, 206, p, 26)
-    edge_strip(sc, 340, 60, 206, p, 27)
-    ring_meter(sc, 184, 148, 84, p, 66, w=8)
-    mc.rotor_gear(sc, 184, 148, p, t, r=66)
-    mc.batt_v(sc, 36, 60, 206, w=4)
-    mc.lamps_diamonds(sc, 68, 268, p, 26)
-    mc.readout(sc, 184, 268, p, 26, lines=3, pitch=24)
-    mc.rotor_reticle(sc, 300, 268, p, t, r=36)
-
-
-def c27(sc, p, t):          # Target Lock: target viewport
-    target_view(sc, (18, 62, 350, 192), p, t, side="RNG 88")            # temp as the range reading
-    mc.batt_h(sc, 18, 350, 202, h=4)
-    mc.lamps_domes(sc, 68, 262, p, 27, cols=3, rows=2)
-    mc.meter_arc(sc, 184, 286, 40, p, 60)
-    mc.rotor_radar(sc, 300, 262, p, t, r=40)
-
-
-def c28(sc, p, t):          # Archive: hex table hero
-    mc.scope_rect(sc, (18, 62, 168, 176), p, "ticks", t)
-    hex_table(sc, 186, 74, 4, 6, p, 28, temp_cell=(2, 3))               # temp in hex (58 = 88)
-    m.notched_frame(sc, 176, 59, 352, 179, p["frame"])
-    mc.batt_h(sc, 18, 350, 193, h=4)
-    mc.lamps_matrix(sc, 68, 256, p, 28)
-    bargraph(sc, 140, 218, 228, 296, p, n=8, seed=28)
-    mc.rotor_scomp(sc, 300, 256, p, t, r=42)
-
-
-def c29(sc, p, t):          # Sentinel: hero scomp with voice ring
-    edge_strip(sc, 20, 66, 226, p, 29, w=8)
-    edge_strip(sc, 340, 66, 226, p, 30, w=8)
-    ring_meter(sc, 184, 146, 86, p, 72, n=32, w=7)
-    mc.rotor_scomp(sc, 184, 146, p, t, r=70)
-    small_temp(sc, 184, 146 + 32, "88", p, size=12)                      # temp under the hub
-    mc.batt_v(sc, 36, 66, 226, w=4)
-    mc.lamps_pills(sc, 68, 268, p, 29)
-    mc.readout(sc, 184, 276, p, 29, lines=2, pitch=24)
-    mc.lamps_pills(sc, 300, 268, p, 31)
-
-
-def c30(sc, p, t):          # Signal Tower: wide spectrum bar graph
-    bargraph(sc, 18, 62, 350, 172, p, n=22, seed=30)
-    small_temp(sc, 344, 183, "88", p, anchor="rm", size=11)            # temp as the last channel number
-    for i, ch in enumerate(("01", "05", "09", "13", "17")):
-        sc.text(30 + i * 68, 183, ch, f(m.MONT, 10), p["tick"], "mm")
-    mc.batt_h(sc, 18, 350, 194, h=4)
-    mc.lamps_grid(sc, 68, 262, p, 30)
-    mc.readout(sc, 184, 258, p, 30, lines=4, pitch=29)
-    mc.rotor_radar(sc, 300, 262, p, t, r=44)
-
-
-def c31(sc, p, t):          # Night Watch: tall centre scope, side banks
-    vscope(sc, 140, 60, 228, 300, p, t, frame="brackets")
-    small_temp(sc, 184, 66, "88", p, size=11)                           # temp in the scope's top tag
-    mc.lamps_switcher(sc, 68, 180, p, 31, cols=6, rows=8)
-    mc.meter_dots(sc, 300, 60, 300, p, 66, n=16)
-    mc.batt_v(sc, 330, 60, 300, w=6)
-    mc.rotor_square(sc, 68, 278, p, t, r=26)
-
-
-def c32(sc, p, t):          # Command Deck: stacked dual scope
-    mc.scope_rect(sc, (18, 62, 288, 116), p, "notched", t)
-    mc.scope_rect(sc, (18, 126, 288, 180), p, "notched", t + 13, tilt=(-10, 4))
-    sc.text(282, 120, "CH 88", f(m.MONT, 10), p["tick"], "rm")         # temp as a channel tag
-    mc.meter_vseg(sc, 306, 49, 178, p, 66)
-    mc.batt_v(sc, 348, 49, 178, w=6)
-    mc.lamps_grid(sc, 68, 250, p, 32)
-    mc.readout(sc, 184, 246, p, 32, lines=4, pitch=29)
-    mc.rotor_gear(sc, 300, 250, p, t, r=44)
-
-
-def c33(sc, p, t):          # Interceptor Wing: round scope flanked by bar graphs
-    mc.scope_round(sc, 184, 136, 74, p, t)
-    bargraph(sc, 18, 66, 90, 206, p, n=4, seed=33)
-    bargraph(sc, 278, 66, 350, 206, p, n=4, seed=34)
-    mc.batt_h(sc, 112, 256, 224, h=4)
-    mc.lamps_diamonds(sc, 68, 268, p, 33)
-    mc.readout(sc, 184, 266, p, 33, lines=3, pitch=24)
-    mc.rotor_square(sc, 300, 268, p, t, r=36)
-
-
-def c34(sc, p, t):          # Bunker: waterfall + big gauge side by side
-    waterfall(sc, 18, 62, 176, 196, p, t, rows=7)
-    big_gauge(sc, 268, 168, 78, p, 58)
-    mc.batt_h(sc, 192, 344, 188, h=4)
-    mc.lamps_switcher(sc, 68, 262, p, 34, cols=6, rows=4)
-    hex_table(sc, 158, 244, 2, 3, p, 34, temp_cell=(1, 0), cw=38, rh=18)   # temp in hex (58)
-    mc.rotor_scomp(sc, 300, 262, p, t, r=40)
-
-
-def c35(sc, p, t):          # Cold Steel: wide scope + ring-metered rotor
-    edge_strip(sc, 18, 64, 168, p, 35, w=8)
-    mc.scope_rect(sc, (36, 62, 350, 168), p, "double", t)
-    mc.batt_h(sc, 36, 350, 180, h=4)
-    mc.lamps_domes(sc, 68, 258, p, 35, cols=3, rows=3, r=10)
-    mc.readout(sc, 184, 258, p, 35, lines=3, pitch=26)
-    ring_meter(sc, 300, 258, 46, p, 70, n=22, w=6)
-    mc.rotor_scomp(sc, 300, 258, p, t, r=36)
-    small_temp(sc, 300, 258 + 18, "88", p, size=10)                     # temp in the rotor hub
-
-
-def c36(sc, p, t):          # Ember: big gauge left, tall scope right
-    big_gauge(sc, 120, 168, 92, p, 70, plate="88")
-    vscope(sc, 248, 60, 350, 214, p, t, frame="double")
-    mc.batt_h(sc, 28, 212, 208, h=4)
-    mc.lamps_pills(sc, 68, 262, p, 36)
-    mc.readout(sc, 184, 262, p, 36, lines=3, pitch=24)
-    mc.rotor_gear(sc, 300, 262, p, t, r=40)
-
-
 CONCEPTS2 = [
-    (22, "Snow Patrol", "snow", c22, "ring", "ice white + blue; big gauge, temp on the pivot plate"),
-    (23, "Desert Outpost", "desert", c23, "strip", "sand + rust; twin scopes, full-width meter"),
-    (24, "Forest Scout", "forest", c24, "flat", "tall scope + bar graph; temp as the graph tag"),
-    (25, "Dark Ops", "darkops", c25, "flat", "teal on black waterfall; temp as the channel tag"),
-    (26, "Lava Forge", "lava", c26, "bevel", "voice ring round a big cog, edge lamp strips"),
-    (27, "Target Lock", "targeting", c27, "flat", "locking target view; temp as the range reading"),
-    (28, "Archive", "vault", c28, "strip", "hex table; temp hidden in hex (58 = 88)"),
-    (29, "Sentinel", "standard", c29, "bevel", "big Scomp with voice ring, temp under the hub"),
-    (30, "Signal Tower", "retro", c30, "strip", "wide spectrum bars; temp as the last channel"),
-    (31, "Night Watch", "night", c31, "ring", "tall centre scope, lamp bank, dot meter"),
-    (32, "Command Deck", "command", c32, "bevel", "stacked twin scopes; temp as a channel tag"),
-    (33, "Interceptor Wing", "tie", c33, "pill", "round scope flanked by bar graphs"),
-    (34, "Bunker", "olive", c34, "bevel", "waterfall + big gauge; temp in hex"),
-    (35, "Cold Steel", "steel", c35, "ring", "wide scope, voice-ringed rotor, temp in its hub"),
-    (36, "Ember", "ember", c36, "pill", "big gauge + tall scope; temp on the gauge plate"),
+    dict(name="Snow Patrol", pal="snow", keys="ring", note="ice white + blue; big gauge, temp on the pivot plate", parts=[
+        ["gauge", 0, 1, 184, 176, 112],
+        ["batt", "h", 0, 100, 268, 212, 4],
+        ["lamps", "domes", 0, 68, 262, 3, 2, 11],
+        ["readout", 0, 0, 184, 262, 3, 24],
+        ["rotor", "scomp", 0, 300, 262, 38]]),
+    dict(name="Desert Outpost", pal="desert", keys="strip", note="sand + rust; twin scopes, full-width meter", parts=[
+        ["scope", "double", 0, 18, 62, 178, 158],
+        ["scope", "double", 0, 190, 62, 350, 158],
+        ["meter", "hseg", 0, 18, 350, 172, 10, 24],
+        ["batt", "h", 0, 18, 350, 188, 5],
+        ["lamps", "pills", 0, 68, 252],
+        ["readout", 0, 1, 184, 252, 4, 28],
+        ["rotor", "gear", 0, 300, 252, 42]]),
+    dict(name="Forest Scout", pal="forest", keys="flat", note="tall scope + bar graph; temp as the graph tag", parts=[
+        ["vscope", "notched", 0, 18, 62, 110, 298],
+        ["bars", 0, 0, 132, 62, 350, 176, 14],
+        ["temp", 0, 1, 346, 185, 1, T(11)],
+        ["batt", "v", 0, 119, 62, 298, 4],
+        ["lamps", "matrix", 0, 184, 250],
+        ["rotor", "radar", 0, 300, 250, 44]]),
+    dict(name="Dark Ops", pal="darkops", keys="flat", note="teal on black waterfall; temp as the channel tag", parts=[
+        ["waterfall", 0, 0, 18, 62, 350, 196, 9],
+        ["temp", 0, 1, 24, 69, 2, T(11)],
+        ["batt", "h", 0, 18, 350, 206, 4],
+        ["lamps", "switcher", 0, 68, 262, 6, 4],
+        ["readout", 0, 0, 184, 262, 3, 24],
+        ["rotor", "twin", 0, 300, 258, 0]]),
+    dict(name="Lava Forge", pal="lava", keys="bevel", note="voice ring round a big cog, edge lamp strips", parts=[
+        ["edge", 0, 0, 18, 60, 206, 10],
+        ["edge", 0, 0, 340, 60, 206, 10],
+        ["ring", 0, 0, 184, 148, 84, 28, 8],
+        ["rotor", "gear", 0, 184, 148, 66],
+        ["batt", "v", 0, 36, 60, 206, 4],
+        ["lamps", "diamonds", 0, 68, 268],
+        ["readout", 0, 1, 184, 268, 3, 24],
+        ["rotor", "reticle", 0, 300, 268, 36]]),
+    dict(name="Target Lock", pal="targeting", keys="flat", note="locking target view; temp as the range reading", parts=[
+        ["target", 0, 0, 18, 62, 350, 192],
+        ["temp", 1, 1, 24, 184, 2, T(11)],
+        ["batt", "h", 0, 18, 350, 202, 4],
+        ["lamps", "domes", 0, 68, 262, 3, 2, 11],
+        ["meter", "arc", 0, 184, 286, 40],
+        ["rotor", "radar", 0, 300, 262, 40]]),
+    dict(name="Archive", pal="vault", keys="strip", note="hex table; temp hidden in hex (58 = 88)", parts=[
+        ["scope", "ticks", 0, 18, 62, 168, 176],
+        ["_frame", 0, 0, 176, 59, 352, 179],
+        ["hex", 14, 1, 186, 72, 4, 6, 40, 19],
+        ["batt", "h", 0, 18, 350, 193, 4],
+        ["lamps", "matrix", 0, 68, 256],
+        ["bars", 0, 0, 140, 218, 228, 296, 8],
+        ["rotor", "scomp", 0, 300, 256, 42]]),
+    dict(name="Sentinel", pal="standard", keys="bevel", note="big Scomp with voice ring, temp under the hub", parts=[
+        ["edge", 0, 0, 20, 66, 226, 8],
+        ["edge", 0, 0, 340, 66, 226, 8],
+        ["ring", 0, 0, 184, 146, 86, 32, 7],
+        ["rotor", "scomp", 0, 184, 146, 70],
+        ["temp", 0, 1, 184, 178, 0, T(12)],
+        ["batt", "v", 0, 36, 66, 226, 4],
+        ["lamps", "pills", 0, 68, 268],
+        ["readout", 0, 0, 184, 276, 2, 24],
+        ["lamps", "pills", 0, 300, 268]]),
+    dict(name="Signal Tower", pal="retro", keys="strip", note="wide spectrum bars; temp as the last channel", parts=[
+        ["bars", 0, 0, 18, 62, 350, 172, 22],
+        ["_text", 0, 0, 30, 183, 68, 10, "01", "05", "09", "13", "17"],
+        ["temp", 0, 1, 344, 183, 1, T(11)],
+        ["batt", "h", 0, 18, 350, 194, 4],
+        ["lamps", "grid", 0, 68, 262],
+        ["readout", 0, 0, 184, 258, 4, 29],
+        ["rotor", "radar", 0, 300, 262, 44]]),
+    dict(name="Night Watch", pal="night", keys="ring", note="tall centre scope, lamp bank, dot meter", parts=[
+        ["vscope", "brackets", 0, 140, 60, 228, 300],
+        ["temp", 0, 1, 184, 66, 0, T(11)],
+        ["lamps", "switcher", 0, 68, 180, 6, 8],
+        ["meter", "dots", 0, 300, 60, 300, 16],
+        ["batt", "v", 0, 330, 60, 300, 6],
+        ["rotor", "square", 0, 68, 278, 26]]),
+    dict(name="Command Deck", pal="command", keys="bevel", note="stacked twin scopes; temp as a channel tag", parts=[
+        ["scope", "notched", 0, 18, 62, 288, 116],
+        ["scope", "notched", 0, 18, 126, 288, 180],
+        ["temp", 2, 1, 282, 135, 1, T(10)],
+        ["meter", "vseg", 0, 306, 49, 178, 36, 12],
+        ["batt", "v", 0, 348, 49, 178, 6],
+        ["lamps", "grid", 0, 68, 250],
+        ["readout", 0, 0, 184, 246, 4, 29],
+        ["rotor", "gear", 0, 300, 250, 44]]),
+    dict(name="Interceptor Wing", pal="tie", keys="pill", note="round scope flanked by bar graphs", parts=[
+        ["round", 0, 0, 184, 136, 74],
+        ["bars", 0, 0, 18, 66, 90, 206, 4],
+        ["bars", 0, 0, 278, 66, 350, 206, 4],
+        ["batt", "h", 0, 112, 256, 224, 4],
+        ["lamps", "diamonds", 0, 68, 268],
+        ["readout", 0, 1, 184, 266, 3, 24],
+        ["rotor", "square", 0, 300, 268, 36]]),
+    dict(name="Bunker", pal="olive", keys="bevel", note="waterfall + big gauge; temp in hex", parts=[
+        ["waterfall", 0, 0, 18, 62, 176, 196, 7],
+        ["gauge", 0, 0, 268, 168, 78],
+        ["batt", "h", 0, 192, 344, 188, 4],
+        ["lamps", "switcher", 0, 68, 262, 6, 4],
+        ["hex", 1, 1, 158, 244, 2, 3, 38, 18],
+        ["rotor", "scomp", 0, 300, 262, 40]]),
+    dict(name="Cold Steel", pal="steel", keys="ring", note="wide scope, voice-ringed rotor, temp in its hub", parts=[
+        ["edge", 0, 0, 18, 64, 168, 8],
+        ["scope", "double", 0, 36, 62, 350, 168],
+        ["batt", "h", 0, 36, 350, 180, 4],
+        ["lamps", "domes", 0, 68, 258, 3, 3, 10],
+        ["readout", 0, 0, 184, 258, 3, 26],
+        ["ring", 0, 0, 300, 258, 46, 22, 6],
+        ["rotor", "scomp", 0, 300, 258, 36],
+        ["temp", 0, 1, 300, 276, 0, T(10)]]),
+    dict(name="Ember", pal="ember", keys="pill", note="big gauge + tall scope; temp on the gauge plate", parts=[
+        ["gauge", 0, 1, 120, 168, 92],
+        ["vscope", "double", 0, 248, 60, 350, 214],
+        ["batt", "h", 0, 28, 212, 208, 4],
+        ["lamps", "pills", 0, 68, 262],
+        ["readout", 0, 0, 184, 262, 3, 24],
+        ["rotor", "gear", 0, 300, 262, 40]]),
 ]
+FIRST_ID = 21          # skins 0-20 are make_concepts.py's
 
 
-def render(fn, pal, keys_style, t):
-    p = PAL[pal]
-    sc = m.Screen()
-    mc.top_bar(sc, p)
-    fn(sc, p, t)
-    mc.keys(sc, p, keys_style)
-    return sc
+def render(c, t=1.3, mode="full", seed=0):
+    p = PAL[c["pal"]]
+    mc.STATIC = mode != "full"
+    try:
+        sc = m.Screen()
+        mc.top_bar(sc, p, lock=(mode == "lock"))
+        for i, pt in enumerate(c["parts"]):
+            draw_part(sc, p, pt, t, seed + i)
+        if mode == "lock":
+            mc.lock_plates(sc, p)
+        else:
+            mc.keys(sc, p, c["keys"])
+        return sc
+    finally:
+        mc.STATIC = False
+
+
+def export():
+    mc.export_packs()                                        # skins 0-20 (rewrites skins.json)
+    path = os.path.join(PACKS, "skins.json")
+    skins = [s for s in json.load(open(path)) if s["id"] < FIRST_ID]
+    for k, c in enumerate(CONCEPTS2):
+        i, seed = FIRST_ID + k, (FIRST_ID + k) * 7
+        mc.screen_rgb(render(c, mode="static", seed=seed)).save(os.path.join(PACKS, "%02d_main.png" % i))
+        mc.screen_rgb(render(c, mode="lock", seed=seed)).save(os.path.join(PACKS, "%02d_lock.png" % i))
+        mc.thumbnail(render(c, t=1.0 + i * 0.37, seed=seed)).save(os.path.join(PACKS, "%02d_thumb.png" % i))
+        p = PAL[c["pal"]]
+        parts = [list(pt) for pt in c["parts"] if not pt[0].startswith("_")]
+        skins.append(dict(id=i, name=c["name"], palette=dict(p, hex=p["key"]), keys=c["keys"], seed=seed, parts=parts))
+    with open(path, "w") as fh:
+        json.dump(skins, fh, indent=1)
+    print("wrote", len(skins), "skin packs to", os.path.normpath(PACKS))
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
     shots = []
-    for num, name, pal, fn, ks, note in CONCEPTS2:
-        im = render(fn, pal, ks, 1.0 + num * 0.31).finish()
-        im.save(os.path.join(OUT, "%02d_%s.png" % (num, name.lower().replace(" ", "_"))))
-        shots.append((num, name, note, im))
+    for k, c in enumerate(CONCEPTS2):
+        num = 22 + k
+        im = render(c, 1.0 + num * 0.31, seed=(FIRST_ID + k) * 7).finish()
+        im.save(os.path.join(OUT, "%02d_%s.png" % (num, c["name"].lower().replace(" ", "_"))))
+        shots.append((num, c["name"], c["note"], im))
     cap_f = ImageFont.truetype(m.MONT, 26)
     note_f = ImageFont.truetype(m.MONT, 18)
     for sheet, part in ((3, shots[:8]), (4, shots[8:])):
@@ -396,6 +484,7 @@ def main():
                 d.text((x + 4, y + th + 44 + j * 22), ln, font=note_f, fill="#9AA2A8")
         W.save(os.path.join(OUT, "sheet_%d.png" % sheet))
     print("wrote", len(shots), "concepts + 2 sheets to", os.path.normpath(OUT))
+    export()
 
 
 if __name__ == "__main__":

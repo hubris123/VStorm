@@ -678,7 +678,22 @@ def descriptor(i, c):
     d = dict(id=i, name=c["name"], palette=dict(p, hex="#E0A526" if c["pal"] == "standard" else p["key"]),
              frame=c["frame"], lamps=c["lamps"], rotor=c["rotor"], keys=c["keys"], seed=c["seed"],
              geom={k: list(v) for k, v in g.items()})
+    d["parts"] = geom_parts(c, g)
     return d
+
+
+def geom_parts(c, g):
+    """the classic layouts as a part list (see sim/ui_imperial/skin.h); order = drawing order"""
+    sk, mk, b = g["scope"], g["meter"], g["batt"]
+    meter_g = {"vseg": mk[1:6], "dots": mk[1:5], "twin": mk[1:4], "hseg": mk[1:6], "arc": mk[1:4]}[mk[0]]
+    sw = g.get("switcher", (0, 0))
+    scope = ["round", 0, 0, *sk[1:4]] if sk[0] == "round" else ["scope", c["frame"], 0, *sk[1:5]]
+    return [scope,
+            ["meter", mk[0], 0, *meter_g],
+            ["batt", b[0], 0, *b[1:5]],
+            ["lamps", c["lamps"], 0, g["lamps"][0], g["lamps"][1], sw[0], sw[1]],
+            ["readout", 0, 1, *g["readout"]],
+            ["rotor", c["rotor"], 0, *g["rotor"]]]
 
 
 def export_packs():

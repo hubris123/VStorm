@@ -83,6 +83,19 @@ KIND = dict(
     rotor=dict(scomp=0, reticle=1, square=2, twin=3, radar=4, gear=5),
     keys=dict(bevel=0, flat=1, strip=2, ring=3, pill=4),
 )
+PART = dict(scope=0, round=1, vscope=2, target=3, waterfall=4, meter=5, batt=6, lamps=7, edge=8,
+            readout=9, rotor=10, bars=11, ring=12, gauge=13, hex=14, temp=15)
+STYLE = dict(scope="frame", vscope="frame", meter="meter", lamps="lamps", rotor="rotor")
+MAX_PARTS = 12
+
+
+def part_c(pt):
+    """["kind", style, flags, g...] -> C initializer; style may be a name (frame/meter/...)"""
+    kind, style, flags, g = pt[0], pt[1], pt[2], list(pt[3:])
+    if isinstance(style, str):
+        style = {"v": 0, "h": 1}[style] if kind == "batt" else KIND[STYLE[kind]][style]
+    g = [int(round(v)) for v in (g + [0] * 6)[:6]]
+    return "{ %d, %d, %d, { %s } }" % (PART[kind], style, flags, ", ".join(map(str, g)))
 
 
 def hx(c):
@@ -115,20 +128,17 @@ def main():
                     carr(f, f"bg_{layer}_{i}", data)
         f.write("const skin_desc_t SKIN_TABLE[] = {\n")
         for s in skins:
-            i, p, g = s["id"], s["palette"], s["geom"]
-            sc = g["scope"]; mt = g["meter"]; bt = g["batt"]; lp = g["lamps"]; ro = g["readout"]; rt = g["rotor"]
-            sw = g.get("switcher", [0, 0])
-            meter_args = {"vseg": mt[1:6], "dots": mt[1:5], "twin": mt[1:4], "hseg": mt[1:6], "arc": mt[1:4]}[mt[0]]
-            meter_args = (list(meter_args) + [0] * 5)[:5]
+            i, p, parts = s["id"], s["palette"], s["parts"]
+            assert len(parts) <= MAX_PARTS, s["name"]
+            assert sum(1 for pt in parts if pt[2] & 1) == 1, s["name"] + ": exactly one part holds the temp"
             bg = (f"bg_main_{i}, bg_lock_{i}, sizeof(bg_main_{i}), sizeof(bg_lock_{i})" if i > 0
                   else "0, 0, 0, 0")
+            plist = ",\n        ".join(part_c(pt) for pt in parts)
             f.write(f"""    {{ "{s['name']}",
       {hx(p['frame'])}, {hx(p['grid'])}, {hx(p['trace'])}, {hx(p['accent'])}, {hx(p['text'])}, {hx(p['tick'])}, {hx(p['key'])}, {hx(p['hex'])},
       {{ {', '.join(hx(c) for c in p['lamps'])} }},
-      {1 if sc[0] == 'round' else 0}, {KIND['frame'][s['frame']]}, {KIND['meter'][mt[0]]}, {1 if bt[0] == 'h' else 0}, {KIND['lamps'][s['lamps']]}, {KIND['rotor'][s['rotor']]}, {KIND['keys'][s['keys']]},
-      {{ {', '.join(str(int(v)) for v in sc[1:5])} }}, {{ {', '.join(str(int(v)) for v in meter_args)} }},
-      {{ {', '.join(str(int(v)) for v in bt[1:5])} }}, {{ {int(lp[0])}, {int(lp[1])}, {int(sw[0])}, {int(sw[1])} }},
-      {{ {', '.join(str(int(v)) for v in ro)} }}, {{ {', '.join(str(int(v)) for v in rt)} }},
+      {KIND['keys'][s['keys']]}, {len(parts)},
+      {{ {plist} }},
       {bg}, thumb_{i} }},
 """)
         f.write("};\nconst int SKIN_COUNT = %d;\n" % len(skins))

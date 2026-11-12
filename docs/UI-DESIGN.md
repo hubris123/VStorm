@@ -117,13 +117,30 @@ Interaction rules that follow:
 | **Secret temp** (main + lock) | Only the owner knows | Readout line 1 (top, over SYS) is pinned to "TEMP" + unit in Aurebesh with the number in the callsign's TK-style digits (Aurebesh-English 20 px, sharing the Aurebesh baseline: digits and letters both 13 px tall, same pixel rows), e.g. TEMP 88 F. Board temperature from the QMI8658 (reads warmer than the air - "suit temp"). The other three lines keep changing |
 | **Sensors** (settings page 10) | Turn them on/off | Top row: TEMP on/off, C/F unit (big amber F or C, sub-label "UNIT", never lit), readings panel (PWR / TILT / TEMP). Row A: BATTERY (14 px to fit), TILT / GRID and QUIET / ONLY on two lines (toggle names 16 px) (default on: tilt lines fade out while the VOX gate is open). All keys in the bottom-row columns. Defaults: all on, °F |
 | **Sensor read rates** | Keep I2C quiet | Temperature every 30 s, battery every 10 s (cached; also read at start-up, when the Sensors page opens, and when a toggle changes). Tilt every frame (25/s) because the lines animate. Labels redraw only when the shown value changes |
-| **Skin** (settings page 11) | Pick a look | Thumbnail carousel (previous / current / next; tap a side thumbnail or use < SKIN >), skin number + name, APPLY lights green when the shown skin isn't active (ACTIVE when it is). 21 built in: Imperial Standard + the 20 concepts. A skin restyles MAIN + LOCK; settings keep the standard look |
+| **Skin** (settings page 11) | Pick a look | Thumbnail carousel (previous / current / next; tap a side thumbnail or use < SKIN >), skin number + name, APPLY lights green when the shown skin isn't active (ACTIVE when it is). 36 built in: Imperial Standard, the 20 concepts (2-21) and 15 free-layout skins (22-36). A skin restyles MAIN + LOCK; settings keep the standard look |
 | **Display off** | Blank the panel, keep working | All black except one dim amber line in the middle, "TAP 5 TIMES TO WAKE DISPLAY", drifting a few px every 20 s (burn-in). 5 quick taps wake to Main. Audio and BOOT keep working |
 | **Lock** | Prop mode, ignore stray taps | Full-screen decoration (Aurebesh, lamps, live scope). Unlock: 5 rapid taps, as on the 1.47 |
 | **Confirm** | Dangerous actions | Hold-to-confirm bar |
 
 The 1.47 firmware's callsign roller (10 × 27 px dials) breaks the touch rules at this size;
 that is why the callsign screen becomes one-character-at-a-time.
+
+## 5a. Skin layout rules
+
+Every skin keeps the top bar (callsign, TX, CLIP) and the LOCK / SYS / LIVE keys where they
+are (colour and key style may change). The console area between them is free: any mix of
+parts (skin.h): scope, round scope, tall scope, target view, waterfall, voice meter, bar
+graph, ring meter, big gauge, battery bar, lamps, edge lamp strips, Aurebesh readout, rotors,
+hex table, temp tag. Rules:
+
+- **At least one live voice display** (scope, meter, bar graph, ring, gauge, waterfall...).
+- **Small parts in the row above the keys are centred on the key centres** (x 68 / 184 / 300,
+  within 3 px). Misaligned small parts look broken; big parts (gauges, tall scopes,
+  waterfalls) may stand on their own.
+- **The battery bar gets clear space**: at least 5 px from every other part.
+- **The secret temperature lives in exactly one place per skin**: readout line 1, a gauge
+  plate, a tag (plain digits, "RNG 88", "CH 88"), a rotor hub, or a hex cell (in hex: 88 F
+  reads 58). It follows the TEMP on/off and F/C settings like the readout version.
 
 ## 6. Motion
 

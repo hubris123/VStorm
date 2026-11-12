@@ -127,6 +127,6 @@ done
 wait
 
 wasm-ld --no-entry --export-dynamic --allow-undefined --gc-sections \
-  --initial-memory=8388608 -z stack-size=262144 \
+  --initial-memory=16777216 -z stack-size=262144 \
   -o "$SIM/web/vstorm-$TARGET.wasm" "${OBJS[@]}"
 echo "built $SIM/web/vstorm-$TARGET.wasm ($(stat -c %s "$SIM/web/vstorm-$TARGET.wasm") bytes)"

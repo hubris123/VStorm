@@ -66,17 +66,26 @@ This is the loop for UI work: edit `ui.c` → `build.sh` → run a script → lo
 
 ## Skins
 
-`design/skins/concepts/make_concepts.py` is the single source for every skin: it draws the
-mock-ups and exports `design/skins/packs/` (`skins.json` recipes + per-skin background layers
-+ carousel thumbnails). `sim/tools/gen_skins.py` turns that into `skins_gen.c` at build time
-(lossless RLE backgrounds). The UI code (`ui_imperial.c`) builds the live widgets from the
-recipe: scope (rect / round, 5 frame styles), meter (segments, dots, twin, horizontal, arc
-gauge), lamps (cluster, switcher bank, domes, pills, diamonds, matrix), rotor (Scomp,
-reticle, square brackets, twin, radar, cog) and key style (bevel, flat, strip, ring, pill).
+`design/skins/concepts/make_concepts.py` (skins 0-20) and `make_concepts2.py` (skins 21-35,
+shown as 22-36) are the single source for every skin: they draw the mock-ups and export
+`design/skins/packs/` (`skins.json` recipes + per-skin background layers + carousel
+thumbnails). Run `make_concepts2.py`; it exports both sets. `sim/tools/gen_skins.py` turns
+that into `skins_gen.c` at build time (lossless RLE backgrounds).
+
+A recipe is a palette, a key style and a **list of parts** (`skin.h`, up to 12): scope (5
+frame styles), round scope, tall scope, target view, waterfall, meter (segments, dots, twin,
+horizontal, arc), battery bar, lamps (cluster, switcher bank, domes, pills, diamonds,
+matrix), edge lamp strip, Aurebesh readout, rotor (Scomp, reticle, square brackets, twin,
+radar, cog), bar graph, ring meter, big gauge, hex table, temp tag. Parts can repeat (two
+scopes, two rotors). The UI code (`ui_imperial.c`) builds the live widgets from the list;
+the background art holds everything that never moves. Layout rules: `docs/UI-DESIGN.md` 5a.
 Settings page 11 (SKIN) switches between them. On the product the same recipes + art come
 from signed `.vskin` files on the SD card (`docs/PRODUCT-NOTES.md`).
 
-To add a skin: add an entry to `CONCEPTS` in `make_concepts.py`, run it, rebuild.
+To add a skin: add an entry to `CONCEPTS2` in `make_concepts2.py` (a part list), run it, rebuild.
+
+On the device the per-part state (`console_t`, ~60 KB for both screens) and the bar-graph
+canvases belong in PSRAM.
 
 ## Moving the Imperial UI into firmware3 (later)
 
