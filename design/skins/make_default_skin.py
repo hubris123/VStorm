@@ -45,6 +45,7 @@ def scomp_socket(sc, cx=m.SCOMP_CX, cy=m.SCOMP_CY):
 def meter_wells(sc):
     for i in range(12):
         sc.rect(306, 178 - i * 11 - 8, 342, 178 - i * 11, fill="#07090B")
+    sc.rect(346, 49, 354, 178, fill="#07090B")            # battery bar track (no label)
 
 
 def main_bg():
@@ -80,9 +81,9 @@ def lock_bg():
 
 
 def settings_common(sc):
-    for i in range(9):                                      # page pip wells (9 settings pages)
-        x = 46 + i * 31
-        sc.rect(x, 46, x + 25, 50, fill=m.DIM)
+    for i in range(10):                                     # page pip wells (10 settings pages)
+        x = 46 + i * 27
+        sc.rect(x, 46, x + 22, 50, fill=m.DIM)
     m.notched_frame(sc, 16, 60, 352, 184)
     for x in (16, 132, 248):
         wells(sc, x, 320, 104, 114)
@@ -129,7 +130,16 @@ def callsign_bg():
     return sc
 
 
-SKINS = {"main": main_bg, "lock": lock_bg, "settings_value": settings_value_bg,
+def settings_three_bg():
+    """sensors page: three toggle keys in the same columns as the bottom row"""
+    sc = m.Screen()
+    settings_common(sc)
+    for x in (16, 132, 248):
+        wells(sc, x, 204, 104, 104)
+    return sc
+
+
+SKINS = {"main": main_bg, "lock": lock_bg, "settings_value": settings_value_bg, "settings_three": settings_three_bg,
          "settings_wide": settings_wide_bg, "callsign": callsign_bg}
 
 

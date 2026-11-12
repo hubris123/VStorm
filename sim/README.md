@@ -68,8 +68,9 @@ This is the loop for UI work: edit `ui.c` → `build.sh` → run a script → lo
 
 `ui_imperial.c` only uses LVGL 8.4, `esp_random()`, firmware3's `audio.h` and the hooks in
 `ui_imperial.h`. To port: add `audio_is_keyed()` to `firmware3/main/audio.c` (the VOX state
-is already there), implement the three `ui_platform_*` hooks (NVS + DSP params + ES8311
-volume + SH8601 brightness), enable Montserrat 12/14/16/18/20/22/28 and Tiny TTF in sdkconfig,
+is already there), implement the `ui_platform_*` hooks (NVS + DSP params + ES8311
+volume + SH8601 brightness; `ui_platform_battery()` from the AXP2101 and `ui_platform_tilt()`
+from the QMI8658 - Waveshare's `01_AXP2101` / `03_QMI8658` examples show both), enable Montserrat 12/14/16/18/20/22/28 and Tiny TTF in sdkconfig,
 embed the fonts and the skin as RGB565 **byte-swapped** (firmware3 uses LV_COLOR_16_SWAP=y),
 raise the flash size to 16 MB, and pin audio and LVGL to different cores.
 Regenerate the skin with `python3 design/skins/make_default_skin.py`.

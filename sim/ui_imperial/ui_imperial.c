@@ -1,7 +1,7 @@
 /* Imperial console UI for the ESP32-S3-Touch-AMOLED-1.8 (368 x 448), LVGL 8.4.
  *
  * Layers (docs/UI-DESIGN.md section 6b):
- *   background  one RGB565 image per screen = the skin (design/skins/default/*.png):
+ *   background  one RGB565 image per screen = the skin (design/skins/default/ (PNG)):
  *               key housings, cap wells, frames, grids, fixed labels
  *   live        LVGL objects on top: key caps, lamps, scope, meter, Scomp rings,
  *               readouts, values. Coordinates match design/mockups/make_mockups.py.
@@ -59,7 +59,7 @@ static lv_img_dsc_t mk_skin(const uint8_t *px)
     d.data = px;
     return d;
 }
-static lv_img_dsc_t skin_main, skin_lock, skin_set_value, skin_set_wide, skin_callsign;
+static lv_img_dsc_t skin_main, skin_lock, skin_set_value, skin_set_wide, skin_callsign, skin_set_three;
 
 static lv_obj_t *make_screen(const lv_img_dsc_t *skin, lv_obj_t **bg_out)
 {
@@ -216,6 +216,9 @@ typedef struct {
     lv_obj_t *ring_outer[3], *ring_inner, *ring_tip[2];
     float ang[3], spd[3];
     uint16_t rev_next[3];                 /* ticks until each ring reverses */
+    lv_obj_t *batt;                       /* battery bar beside the meter */
+    lv_obj_t *tilt_v, *tilt_h;            /* tilt crosshair lines in the scope */
+    float tilt_x, tilt_y, tilt_opa;
 } console_t;
 
 static console_t con_main, con_lock;
@@ -240,8 +243,19 @@ static void callsign_show(console_t *c)
     lv_obj_set_pos(c->callsign, 46, 31 - lv_obj_get_height(c->callsign) / 2);   /* centred in the top bar */
 }
 
+/* scope interior for the tilt lines */
+#define SCOPE_X0 21
+#define SCOPE_X1 285
+#define SCOPE_Y0 65
+#define SCOPE_Y1 173
+#define TILT_COL C(0x46525A)      /* a shade whiter than the grid (#1E2429) */
+#define TILT_RANGE 45.0f          /* degrees to reach the scope edge */
+
 static void make_chart(console_t *c, lv_color_t trace)
 {
+    c->tilt_v = box(c->scr, (SCOPE_X0 + SCOPE_X1) / 2, SCOPE_Y0, 1, SCOPE_Y1 - SCOPE_Y0, TILT_COL);
+    c->tilt_h = box(c->scr, SCOPE_X0, (SCOPE_Y0 + SCOPE_Y1) / 2, SCOPE_X1 - SCOPE_X0, 1, TILT_COL);
+    c->tilt_opa = 255;
     lv_obj_t *ch = lv_chart_create(c->scr);
     lv_obj_set_pos(ch, 19, 63);
     lv_obj_set_size(ch, 269, 113);
@@ -280,10 +294,54 @@ static void make_small_lamps(console_t *c)
     lv_obj_set_style_border_color(c->clip, COL_FRAME, 0);
 }
 
+/* battery bar: x 346-354, same span as the meter (y 49-178), no label;
+ * drains from the top; green, yellow at 30 %, red at 15 % */
+#define BATT_X 346
+#define BATT_TOP 49
+#define BATT_BOT 178
 static void make_meter(console_t *c)
 {
     for (int i = 0; i < METER_SEGS; i++)
         c->meter[i] = box(c->scr, 306, 178 - i * 11 - 8, 36, 8, COL_PANEL);
+    c->batt = box(c->scr, BATT_X, BATT_TOP, 8, BATT_BOT - BATT_TOP, COL_GREEN);
+}
+
+static void batt_update(console_t *c)
+{
+    int pct = ui_platform_battery();
+    if (!S.show_batt || pct < 0) { lv_obj_add_flag(c->batt, LV_OBJ_FLAG_HIDDEN); return; }
+    lv_obj_clear_flag(c->batt, LV_OBJ_FLAG_HIDDEN);
+    if (pct > 100) pct = 100;
+    int h = (BATT_BOT - BATT_TOP) * pct / 100;
+    if (h < 2) h = 2;
+    lv_obj_set_y(c->batt, BATT_BOT - h);
+    lv_obj_set_height(c->batt, h);
+    lv_obj_set_style_bg_color(c->batt, pct <= 15 ? COL_RED : pct <= 30 ? COL_AMBER : COL_GREEN, 0);
+}
+
+/* tilt lines glide toward the sensor angle; fade out while talking if QUIET ONLY */
+static void tilt_update(console_t *c, bool keyed)
+{
+    float x = 0, y = 0;
+    bool have = S.show_tilt && ui_platform_tilt(&x, &y);
+    float target_opa = (!have || (S.tilt_quiet && keyed)) ? 0.0f : 255.0f;
+    c->tilt_opa += (target_opa - c->tilt_opa) * 0.25f;
+    if (have) {
+        c->tilt_x += (x - c->tilt_x) * 0.2f;
+        c->tilt_y += (y - c->tilt_y) * 0.2f;
+    }
+    float fx = c->tilt_x / TILT_RANGE, fy = c->tilt_y / TILT_RANGE;
+    if (fx > 1) fx = 1; if (fx < -1) fx = -1;
+    if (fy > 1) fy = 1; if (fy < -1) fy = -1;
+    int cx = (SCOPE_X0 + SCOPE_X1) / 2 + (int)(fx * (SCOPE_X1 - SCOPE_X0) / 2);
+    int cy = (SCOPE_Y0 + SCOPE_Y1) / 2 + (int)(fy * (SCOPE_Y1 - SCOPE_Y0) / 2);
+    if (cx > SCOPE_X1 - 1) cx = SCOPE_X1 - 1;
+    if (cy > SCOPE_Y1 - 1) cy = SCOPE_Y1 - 1;
+    lv_obj_set_x(c->tilt_v, cx);
+    lv_obj_set_y(c->tilt_h, cy);
+    lv_opa_t o = (lv_opa_t)(c->tilt_opa < 2 ? 0 : c->tilt_opa);
+    lv_obj_set_style_bg_opa(c->tilt_v, o, 0);
+    lv_obj_set_style_bg_opa(c->tilt_h, o, 0);
 }
 
 static uint16_t lamp_delay(bool busy)
@@ -551,7 +609,7 @@ static void build_lock(void)
 }
 
 /* ================= SETTINGS ================= */
-enum { P_VOLUME, P_EFFECT, P_VOX, P_STATIC, P_CLICK, P_BRIGHT, P_CALLSIGN, P_RESET, P_DISPLAY, NPAGES };
+enum { P_VOLUME, P_EFFECT, P_VOX, P_STATIC, P_CLICK, P_BRIGHT, P_CALLSIGN, P_RESET, P_DISPLAY, P_SENSORS, NPAGES };
 static const struct { const char *title, *desc; int min, max; } PAGE[NPAGES] = {
     {"VOLUME", "SPEAKER LEVEL", 0, 100},
     {"EFFECT", "DRIVE + BITCRUSH", 0, 100},
@@ -562,10 +620,13 @@ static const struct { const char *title, *desc; int min, max; } PAGE[NPAGES] = {
     {"CALLSIGN", "", 0, 0},
     {"FACTORY RESET", "", 0, 0},
     {"DISPLAY OFF", "", 0, 0},
+    {"SENSORS", "", 0, 0},
 };
 static int page;
 static lv_obj_t *set_bg, *set_title, *set_count, *set_pip;
-static lv_obj_t *grp_value, *grp_cs, *grp_reset, *grp_disp;   /* per-page content groups */
+static lv_obj_t *grp_value, *grp_cs, *grp_reset, *grp_disp, *grp_sens;   /* per-page content groups */
+static cap_t cap_tog[3];
+static lv_obj_t *sens_batt, *sens_tilt;
 static lv_obj_t *g_arc, *g_val, *g_desc, *g_bar[10], *g_tick[2], *g_lamp[3], *g_spin;
 static lv_obj_t *cs_show;
 static lv_obj_t *rs_seg[20];
@@ -609,22 +670,31 @@ static void value_refresh(void)
         lv_obj_set_style_bg_opa(g_bar[i], i < tenths ? LV_OPA_COVER : LV_OPA_0, 0);
 }
 
+static void toggles_refresh(void);
+static void sensors_readout(void);
+
 static void page_show(void)
 {
     lv_label_set_text(set_title, PAGE[page].title);
     lv_label_set_text_fmt(set_count, "%d/%d", page + 1, NPAGES);
     lv_obj_update_layout(set_count);
     lv_obj_set_pos(set_count, 322 - lv_obj_get_width(set_count), 19);
-    lv_obj_set_x(set_pip, 46 + page * 31);
+    lv_obj_set_x(set_pip, 46 + page * 27);
+    bool three = (page == P_SENSORS);
     bool wide = (page == P_CALLSIGN || page == P_RESET || page == P_DISPLAY);
-    lv_img_set_src(set_bg, wide ? &skin_set_wide : &skin_set_value);
-    if (wide) { lv_obj_add_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
+    lv_img_set_src(set_bg, three ? &skin_set_three : wide ? &skin_set_wide : &skin_set_value);
+    if (wide || three) { lv_obj_add_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
     else { lv_obj_clear_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
+    if (three) lv_obj_clear_flag(grp_sens, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_sens, LV_OBJ_FLAG_HIDDEN);
+    for (int i = 0; i < 3; i++) {
+        if (three) lv_obj_clear_flag(cap_tog[i].cap, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(cap_tog[i].cap, LV_OBJ_FLAG_HIDDEN);
+    }
     if (page == P_CALLSIGN) lv_obj_clear_flag(grp_cs, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_cs, LV_OBJ_FLAG_HIDDEN);
     if (page == P_RESET) lv_obj_clear_flag(grp_reset, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_reset, LV_OBJ_FLAG_HIDDEN);
     if (page == P_DISPLAY) lv_obj_clear_flag(grp_disp, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_disp, LV_OBJ_FLAG_HIDDEN);
     if (wide) lv_obj_clear_flag(cap_wide.cap, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(cap_wide.cap, LV_OBJ_FLAG_HIDDEN);
-    if (!wide) { lv_obj_clear_flag(cap_minus.cap, LV_OBJ_FLAG_HIDDEN); lv_obj_clear_flag(cap_plus.cap, LV_OBJ_FLAG_HIDDEN); }
+    if (!wide && !three) { lv_obj_clear_flag(cap_minus.cap, LV_OBJ_FLAG_HIDDEN); lv_obj_clear_flag(cap_plus.cap, LV_OBJ_FLAG_HIDDEN); }
     else { lv_obj_add_flag(cap_minus.cap, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cap_plus.cap, LV_OBJ_FLAG_HIDDEN); }
 
     if (page == P_CALLSIGN) {
@@ -645,12 +715,48 @@ static void page_show(void)
         lv_label_set_text(cap_wide.lbl, "TURN DISPLAY OFF");
         lv_label_set_text(cap_wide.sub, "TAP 5 TIMES TO WAKE");
         cap_style(&cap_wide, true);
+    } else if (page == P_SENSORS) {
+        toggles_refresh();
+        sensors_readout();
     } else {
         lv_label_set_text(g_desc, PAGE[page].desc);
         value_refresh();
     }
     lv_obj_align(cap_wide.lbl, LV_ALIGN_CENTER, 0, -10);
     lv_obj_align(cap_wide.sub, LV_ALIGN_CENTER, 0, 13);
+}
+
+/* ---- sensors page: three on/off keys (lit green = on) + live readings ---- */
+static uint8_t *tog_val(int i) { return i == 0 ? &S.show_batt : i == 1 ? &S.show_tilt : &S.tilt_quiet; }
+
+static void toggles_refresh(void)
+{
+    for (int i = 0; i < 3; i++) {
+        bool on = *tog_val(i);
+        lv_label_set_text(cap_tog[i].sub, on ? "ON" : "OFF");
+        cap_style(&cap_tog[i], on);
+    }
+}
+
+static void toggle_cb(lv_event_t *e)
+{
+    int i = (int)(intptr_t)lv_event_get_user_data(e);
+    *tog_val(i) = !*tog_val(i);
+    toggles_refresh();
+    ui_platform_apply(&S);
+}
+
+static void sensors_readout(void)
+{
+    if (page != P_SENSORS) return;
+    int pct = ui_platform_battery();
+    if (pct < 0) lv_label_set_text(sens_batt, "POWER CELL   --  (USB)");
+    else lv_label_set_text_fmt(sens_batt, "POWER CELL   %d%%", pct);
+    float x = 0, y = 0;
+    if (ui_platform_tilt(&x, &y))
+        lv_label_set_text_fmt(sens_tilt, "TILT   X %+d   Y %+d", (int)x, (int)y);
+    else
+        lv_label_set_text(sens_tilt, "TILT   --");
 }
 
 static void open_settings(int p)
@@ -730,7 +836,7 @@ static void build_settings(void)
     set_title = label(scr_settings, "", &lv_font_montserrat_22, COL_TEXT);
     lv_obj_set_pos(set_title, 46, 15);
     set_count = label(scr_settings, "", &lv_font_montserrat_16, COL_LABEL);
-    set_pip = box(scr_settings, 46, 46, 25, 4, COL_AMBER);
+    set_pip = box(scr_settings, 46, 46, 22, 4, COL_AMBER);
 
     /* value pages */
     grp_value = group(scr_settings);
@@ -769,6 +875,15 @@ static void build_settings(void)
     center_at(r2, 184, 110);
     for (int i = 0; i < 20; i++) rs_seg[i] = box(grp_reset, 46 + i * 14, 138, 10, 22, COL_DIM);
 
+    /* sensors page */
+    grp_sens = group(scr_settings);
+    sens_batt = label(grp_sens, "", &lv_font_montserrat_16, COL_TEXT);
+    lv_obj_set_pos(sens_batt, 40, 76);
+    sens_tilt = label(grp_sens, "", &lv_font_montserrat_16, COL_TEXT);
+    lv_obj_set_pos(sens_tilt, 40, 104);
+    lv_obj_t *sn = label(grp_sens, "QUIET ONLY: tilt lines hide while you talk", &lv_font_montserrat_14, COL_LABEL);
+    lv_obj_set_pos(sn, 40, 146);
+
     /* display-off page */
     grp_disp = group(scr_settings);
     lv_obj_t *d1 = label(grp_disp, "Blank the screen. Voice keeps working,", &lv_font_montserrat_14, COL_TEXT);
@@ -783,6 +898,20 @@ static void build_settings(void)
     cap_plus = make_cap(scr_settings, 192, 204, 160, 104, LV_SYMBOL_PLUS, "HOLD TO REPEAT", COL_BLUE, true,
                         step_cb, LV_EVENT_PRESSED, (void *)(intptr_t)1);
     cap_wide = make_cap(scr_settings, 16, 204, 336, 104, "EDIT", "", COL_AMBER, false, wide_cb, LV_EVENT_ALL, NULL);
+    static const char *TOG[3] = {"BATTERY", "TILT GRID", "QUIET\nONLY"};   /* too wide -> two lines */
+    for (int i = 0; i < 3; i++) {
+        cap_tog[i] = make_cap(scr_settings, 16 + i * 116, 204, 104, 104, TOG[i], "ON", COL_GREEN, false,
+                              toggle_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        lv_point_t sz;                                                 /* name: 18 px, 16 px if wide */
+        lv_txt_get_size(&sz, TOG[i], &lv_font_montserrat_18, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (sz.x > 76) lv_obj_set_style_text_font(cap_tog[i].lbl, &lv_font_montserrat_16, 0);
+        if (strchr(TOG[i], '\n')) {
+            lv_obj_set_style_text_align(cap_tog[i].lbl, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_style_text_line_space(cap_tog[i].lbl, -2, 0);
+            lv_obj_align(cap_tog[i].lbl, LV_ALIGN_CENTER, 0, -11);
+            lv_obj_align(cap_tog[i].sub, LV_ALIGN_CENTER, 0, 22);
+        }
+    }
     make_cap(scr_settings, 16, 320, 104, 114, LV_SYMBOL_LEFT, "PREV", COL_BLUE, true, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
     make_cap(scr_settings, 132, 320, 104, 114, "MAIN", "EXIT", COL_TEXT, false, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)0);
     make_cap(scr_settings, 248, 320, 104, 114, LV_SYMBOL_RIGHT, "NEXT", COL_BLUE, true, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
@@ -962,6 +1091,8 @@ static void fast_cb(lv_timer_t *t)
     lv_color_t fc = keyed ? (muted ? COL_AMBER : COL_RED) : COL_GREY;
     lv_obj_set_style_line_color(c->frame, fc, 0);
     lv_obj_set_style_line_width(c->frame, keyed ? 3 : 2, 0);
+    batt_update(c);
+    tilt_update(c, keyed);
 }
 
 /* 50 ms: Scomp rings (random speed/direction, spin up while keyed) + settings spinner */
@@ -1036,6 +1167,7 @@ static void lamp_cb(lv_timer_t *t)
         int ph = tick % 20;
         lv_obj_set_style_bg_opa(lock_bar, ph < 10 ? LV_OPA_COVER : LV_OPA_40, 0);
     }
+    if (tick % 3 == 0) sensors_readout();
     if (lv_scr_act() == scr_settings && tick % 25 == 0) {                /* settings readout + lamps */
         int i = rnd() % 2;
         lv_label_set_text_static(g_tick[i], WORDS[rnd() % NWORDS]);
@@ -1056,6 +1188,7 @@ void ui_init(void)
     skin_set_value = mk_skin(skin_settings_value_px);
     skin_set_wide = mk_skin(skin_settings_wide_px);
     skin_callsign = mk_skin(skin_callsign_px);
+    skin_set_three = mk_skin(skin_settings_three_px);
 
     f_aureb13 = lv_tiny_ttf_create_data(aurebesh_ttf_start, aurebesh_ttf_len, 14);
     f_aureb12 = lv_tiny_ttf_create_data(aurebesh_ttf_start, aurebesh_ttf_len, 13);

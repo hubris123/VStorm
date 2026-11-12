@@ -265,7 +265,7 @@ def notched_frame(sc, x0, y0, x1, y1, col="#8A8A8A", n=12):
     sc.line([(x0, y0 + n), (x0 + n, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0 + n)], col, 2)
 
 
-def scope(sc, x0, y0, x1, y1, col, wave, phase=0, frame_col="#8A8A8A", trace=True):
+def scope(sc, x0, y0, x1, y1, col, wave, phase=0, frame_col="#8A8A8A", trace=True, tilt=None):
     sc.rect(x0, y0, x1, y1, fill=PANEL, outline=FRAME)
     for k in range(1, 4):
         yy = y0 + (y1 - y0) * k / 4
@@ -273,6 +273,11 @@ def scope(sc, x0, y0, x1, y1, col, wave, phase=0, frame_col="#8A8A8A", trace=Tru
     for k in range(1, 6):
         xx = x0 + (x1 - x0) * k / 6
         sc.line([(xx, y0), (xx, y1)], "#1E2429", 1)
+    if tilt is not None:                     # tilt crosshair: a shade whiter than the grid
+        tx = (x0 + x1) / 2 + max(-1, min(1, tilt[0] / 45)) * (x1 - x0 - 6) / 2
+        ty = (y0 + y1) / 2 + max(-1, min(1, tilt[1] / 45)) * (y1 - y0 - 6) / 2
+        sc.line([(tx, y0 + 2), (tx, y1 - 2)], "#46525A", 1)
+        sc.line([(x0 + 2, ty), (x1 - 2, ty)], "#46525A", 1)
     if trace:
         pts = []
         n = len(wave)
@@ -284,6 +289,13 @@ def scope(sc, x0, y0, x1, y1, col, wave, phase=0, frame_col="#8A8A8A", trace=Tru
         if frame_col not in ("#8A8A8A",):       # keyed: frame glows in its colour
             sc.g.line([(x * S, y * S) for x, y in [(x0 - 3, y0 + 9), (x0 + 9, y0 - 3), (x1 + 3, y0 - 3),
                        (x1 + 3, y1 + 3), (x0 - 3, y1 + 3), (x0 - 3, y0 + 9)]], fill=hexrgb(frame_col, 200), width=6 * S)
+
+
+def battery_bar(sc, pct):
+    """unlabelled battery bar beside the meter: drains from the top, yellow <= 30 %, red <= 15 %"""
+    sc.rect(346, 49, 354, 178, fill="#07090B")
+    h = max(2, int(129 * pct / 100))
+    sc.rect(346, 178 - h, 354, 178, fill=RED if pct <= 15 else AMBER if pct <= 30 else GREEN)
 
 
 def seg_meter(sc, x, ybot, level, segs=12, w=36, h=8, red_from=9):
@@ -354,8 +366,10 @@ def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=N
     sc.text(46, 31, "TK-421", font(AURENG, 42), RED, "lm")
     small_lamp(sc, 252, 22, "TX", keyed and live)
     small_lamp(sc, 316, 22, "CLIP", False)
-    scope(sc, 18, 62, 288, 176, BLUE, wave or voice_wave(60, 3, t), frame_col=frame_col)
+    tilt = None if keyed else (14 * math.sin(t / 9.0), -8 * math.sin(t / 13.0 + 1))   # hidden while talking
+    scope(sc, 18, 62, 288, 176, BLUE, wave or voice_wave(60, 3, t), frame_col=frame_col, tilt=tilt)
     seg_meter(sc, 306, 178, level)
+    battery_bar(sc, 78)
     lamps(sc, CLUSTER_X, CLUSTER_Y, lamp_states or ["blue", "grey", "orange", "grey", "red", "blue", "orange"], lamp_opas)
     ticker(sc, TICK_X, 0, tk or Ticker(4, 1), font(AUREB, 13), mix(AMBER, "#000000", 0.35),
            [CLUSTER_Y + r for r in LAMP_ROWS], "mm")
@@ -423,6 +437,7 @@ def lock_screen():
     small_lamp(sc, 316, 22, "CLIP", False, f=font(AUREB, 12))
     scope(sc, 18, 62, 288, 176, RED, voice_wave(60, 5))
     seg_meter(sc, 306, 178, 55)
+    battery_bar(sc, 26)
     lamps(sc, CLUSTER_X, CLUSTER_Y, ["red", "grey", "blue", "orange", "grey", "red", "blue"])
     ticker(sc, TICK_X, 0, Ticker(4, 9), font(AUREB, 13), mix(AMBER, "#000000", 0.35),
            [CLUSTER_Y + r for r in LAMP_ROWS], "mm")

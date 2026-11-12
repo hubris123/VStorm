@@ -11,6 +11,15 @@ IMPORT("js_settings_save") void js_settings_save(const void *buf, int len);
 
 bool audio_is_keyed(void) { return dsp_is_keyed(); }
 
+/* simulated sensors, driven by the page's sliders (device: AXP2101 + QMI8658) */
+#define EXPORT(n) __attribute__((export_name(n)))
+static int s_batt = 78;
+static float s_tx, s_ty;
+EXPORT("sim_set_battery") void sim_set_battery(int pct) { s_batt = pct; }
+EXPORT("sim_set_tilt") void sim_set_tilt(float x, float y) { s_tx = x; s_ty = y; }
+int ui_platform_battery(void) { return s_batt; }
+bool ui_platform_tilt(float *x, float *y) { *x = s_tx; *y = s_ty; return true; }
+
 void ui_platform_defaults(ui_settings_t *s)
 {
     memset(s, 0, sizeof(*s));
@@ -21,6 +30,9 @@ void ui_platform_defaults(ui_settings_t *s)
     s->stat = 15;
     s->click = 60;
     s->brightness = 55;  /* SH8601 0x51 = 140 */
+    s->show_batt = 1;
+    s->show_tilt = 1;
+    s->tilt_quiet = 1;
 }
 
 void ui_platform_load(ui_settings_t *s)

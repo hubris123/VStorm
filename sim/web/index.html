@@ -170,6 +170,17 @@ footer code { font: 12px var(--mono); color: var(--ink); }
         <p class="note">These are the four DSP settings at the top of <code>firmware3/main/audio.c</code>. VOX is the gate's open level: a sustained loudness of 22 means about 22% of full scale. The browser mic isn't calibrated like the ES8311's 18 dB gain, so set VOX on the device last.</p>
       </section>
 
+      <section class="card" aria-labelledby="hSens" id="sensCard">
+        <h2 id="hSens">Sensors (simulated)</h2>
+        <div class="tune">
+          <label for="sBatt">Battery</label><input type="range" id="sBatt" min="0" max="100" value="78"><output id="oBatt">78%</output>
+          <label for="sTx">Tilt X</label><input type="range" id="sTx" min="-45" max="45" value="0"><output id="oTx">0°</output>
+          <label for="sTy">Tilt Y</label><input type="range" id="sTy" min="-45" max="45" value="0"><output id="oTy">0°</output>
+        </div>
+        <label class="chk"><input type="checkbox" id="sWander" checked> Wander (tilt drifts like a moving wearer)</label>
+        <p class="note">The board reads these from its power chip (AXP2101) and motion sensor (QMI8658). Here you set them by hand. The battery bar turns yellow at 30 % and red at 15 %.</p>
+      </section>
+
       <section class="card" aria-labelledby="hRender" id="renderCard">
         <h2 id="hRender">Render a recording</h2>
         <p class="note">Run a voice recording through the effect at the device's 16 kHz and save the result as a WAV.</p>
@@ -236,6 +247,7 @@ async function boot() {
   $('boardName').textContent = T.name; $('boardRes').textContent = `${w} × ${h}`;
   $('bootHelp').textContent = T.boot; $('heapNote').textContent = T.heap; $('boardNote').textContent = T.note;
   $('tuneCard').hidden = target !== 'fw3';   /* fw3i has the settings on its own screen */
+  $('sensCard').hidden = target !== 'fw3i';
   sim.audioSetRate(dspRate);
   canvas.width = w; canvas.height = h;
   const scale = Math.max(1, Math.floor(Math.min(640 / w, 520 / h)));
@@ -246,7 +258,27 @@ async function boot() {
 }
 await boot();
 
+/* simulated sensors -> wasm (fw3i only) */
+let wanderT = 0;
+function sensors() {
+  const x = sim.exports;
+  if (!x.sim_set_battery) return;
+  const b = +$('sBatt').value;
+  let tx = +$('sTx').value, ty = +$('sTy').value;
+  if ($('sWander').checked) {
+    wanderT += 1 / 60;
+    tx = 22 * Math.sin(wanderT * 0.53) + 9 * Math.sin(wanderT * 1.7);
+    ty = 14 * Math.sin(wanderT * 0.37 + 1) + 6 * Math.sin(wanderT * 1.3);
+    $('sTx').value = Math.round(tx); $('sTy').value = Math.round(ty);
+  }
+  $('oBatt').textContent = b + '%'; $('oTx').textContent = Math.round(tx) + '°'; $('oTy').textContent = Math.round(ty) + '°';
+  x.sim_set_battery(b);
+  x.sim_set_tilt(tx, ty);
+}
+for (const id of ['sTx', 'sTy']) $(id).addEventListener('input', () => { $('sWander').checked = false; });
+
 function frame() {
+  sensors();
   sim.loop();
   const d = sim.dirty();
   if (d !== lastDirty) { img.data.set(sim.pixels()); ctx2d.putImageData(img, 0, 0); lastDirty = d; }
