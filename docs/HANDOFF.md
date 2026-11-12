@@ -118,6 +118,12 @@ sideload - Disney IP risk on paid Star Wars art).
 
 ---
 
+## New Imperial UI (designed, running in the sim, not yet on the device)
+
+Design spec `docs/UI-DESIGN.md`; mock-ups `design/mockups/`; skin (background layer)
+`design/skins/default/`; working LVGL code `sim/ui_imperial/ui_imperial.c` (target `fw3i`,
+the default in the virtual console). Port steps are at the end of `sim/README.md`.
+
 ## Virtual screen (`sim/`) - check UI and DSP changes here before flashing
 
 `sim/` compiles the real `firmware3/main/ui.c` (and the old `firmware/` UI) plus the voice

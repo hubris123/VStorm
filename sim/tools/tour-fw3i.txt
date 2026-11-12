@@ -1,0 +1,44 @@
+# Imperial UI on the AMOLED-1.8: main, LIVE, lock cover, settings pages, callsign, lock screen
+wait 600
+shot 01_main_muted
+signal 0.5 900
+shot 02_talking_muted
+tap 300 360         # LIVE key
+signal 0.5 900
+shot 03_talking_live
+wait 2500
+tap 68 360          # lock: flip cover up
+shot 04_cover_open
+tap 184 360         # SYS (cover closes itself later)
+shot 05_settings_volume
+tap 300 364         # NEXT -> EFFECT
+tap 272 248         # + 
+tap 272 248
+shot 06_settings_effect
+tap 300 364
+tap 300 364
+tap 300 364
+tap 300 364
+tap 300 364         # -> CALLSIGN page
+shot 07_settings_callsign
+tap 184 248         # EDIT CALLSIGN
+tap 300 364         # position -> 2
+tap 96 248          # next char
+shot 08_callsign_edit
+tap 300 364
+tap 184 364         # SAVE
+tap 300 364         # NEXT -> RESET
+shot 09_settings_reset
+tap 184 364         # MAIN
+tap 68 360          # cover
+tap 68 360          # throw switch
+wait 600
+signal 0.5 600
+shot 10_locked
+tap 184 200
+tap 184 200
+tap 184 200
+tap 184 200
+tap 184 200
+wait 300
+shot 11_unlocked

@@ -21,6 +21,7 @@
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   color-scheme: dark;
 }
+[hidden] { display: none !important; }
 html, body { background: var(--mat); color: var(--ink); }
 body { font: 15px/1.5 var(--body); }
 .wrap {
@@ -101,7 +102,7 @@ footer code { font: 12px var(--mono); color: var(--ink); }
   <header>
     <div class="eyebrow">VStorm · firmware running in your browser</div>
     <h1>VStorm Virtual Console</h1>
-    <p class="lede">The device's real UI and stormtrooper voice effect, compiled from the firmware to WebAssembly. Press BOOT to go LIVE, feed it a voice, and tune the effect before you flash.</p>
+    <p class="lede">The device's real UI and stormtrooper voice effect, compiled from the firmware to WebAssembly. Tap it like the device, feed it a voice, and try the design before anything is flashed.</p>
   </header>
 
   <div class="bench">
@@ -146,7 +147,8 @@ footer code { font: 12px var(--mono); color: var(--ink); }
       <section class="card" aria-labelledby="hBoard">
         <h2 id="hBoard">Board</h2>
         <select id="res" aria-label="Board and firmware">
-          <option value="fw3">1.8" AMOLED · firmware3 (active)</option>
+          <option value="fw3i">1.8" AMOLED · Imperial UI (new design)</option>
+          <option value="fw3">1.8" AMOLED · firmware3 (on the device now)</option>
           <option value="fw1">1.47" LCD · firmware (original, full menus)</option>
         </select>
         <p class="note" id="boardNote"></p>
@@ -195,6 +197,9 @@ async function loadWasm(t) {
   return wasmCache[t];
 }
 const TARGETS = {
+  fw3i: { name: 'ESP32-S3-TOUCH-AMOLED-1.8', radius: 45, boot: 'tap: MUTED ↔ LIVE',
+          heap: 'Live layer only: the panel art is one background image per screen (the skin).',
+          note: 'The new Imperial console. Tap the keys: LIVE, SYS for settings, the LOCK cover then its switch. Unlock with 5 quick taps. Talk (or play Demo voice) to see it react.' },
   fw3: { name: 'ESP32-S3-TOUCH-AMOLED-1.8', radius: 45, boot: 'tap: MUTED ↔ LIVE',
          heap: 'firmware3 uses the system heap for LVGL, so this is a guide, not a limit.',
          note: 'The board in firmware3/. Corners are rounded like the panel, which clips about 45 px. Touch is dead on the bench unit, so BOOT and VOX are the controls.' },
@@ -202,7 +207,7 @@ const TARGETS = {
          heap: 'Same 64 KB LVGL pool as firmware/, so a screen that runs out here runs out on that board.',
          note: 'The original build in firmware/. It has the settings, callsign and lock screens still to be ported to firmware3; tap the screen to use them.' },
 };
-let target = 'fw3';
+let target = 'fw3i';
 const TUNE_IDS = { fx: 'Fx', vox: 'Vox', static: 'Static', click: 'Click' };
 const FW3_DSP = { fx: 70, vox: 22, static: 15, click: 60 };   /* firmware3/main/audio.c */
 let tune = { ...FW3_DSP };
@@ -230,7 +235,7 @@ async function boot() {
   applyTune();
   $('boardName').textContent = T.name; $('boardRes').textContent = `${w} × ${h}`;
   $('bootHelp').textContent = T.boot; $('heapNote').textContent = T.heap; $('boardNote').textContent = T.note;
-  $('tuneCard').hidden = target !== 'fw3';
+  $('tuneCard').hidden = target !== 'fw3';   /* fw3i has the settings on its own screen */
   sim.audioSetRate(dspRate);
   canvas.width = w; canvas.height = h;
   const scale = Math.max(1, Math.floor(Math.min(640 / w, 520 / h)));

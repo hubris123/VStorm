@@ -27,12 +27,13 @@ settings_t g_settings = {
     .vox_thresh = 22,     /* s_vox_thresh   */
     .static_lvl = 15,     /* s_static_lvl   */
     .click_vol = 60,      /* s_click_vol    */
+    .gain_out = 55,       /* speaker level: ES8311 voice volume 55 */
+    .brightness = 55,     /* SH8601 0x51 = 140 of 255 */
 };
 
 static volatile int s_level = 0;
 static volatile bool s_clip = false;
 static volatile bool s_muted = true;   /* default muted, as firmware3 */
-static int s_brightness = 140 * 100 / 255;
 
 int  audio_get_level(void) { return s_level; }
 bool audio_get_clip(void)  { bool c = s_clip; s_clip = false; return c; }
@@ -45,7 +46,7 @@ static float s_in[AUDIO_MAX_BLOCK], s_out[AUDIO_MAX_BLOCK];
 
 void sim_hal_init(void) { dsp_init(s_rate); }
 
-EXPORT("sim_get_brightness") int sim_get_brightness(void) { return s_brightness; }
+EXPORT("sim_get_brightness") int sim_get_brightness(void) { return g_settings.brightness; }
 EXPORT("sim_audio_in_ptr")  float *sim_audio_in_ptr(void)  { return s_in; }
 EXPORT("sim_audio_out_ptr") float *sim_audio_out_ptr(void) { return s_out; }
 EXPORT("sim_audio_set_rate") void sim_audio_set_rate(int hz)
@@ -75,7 +76,8 @@ EXPORT("sim_audio_process") void sim_audio_process(int n)
         bool c = false;
         int16_t o = dsp_process((float)s, &c);
         if (c) s_clip = true;
-        s_out[i] = s_muted ? 0.0f : o / 32768.0f;
+        /* volume relative to the device's current ES8311 level (55) */
+        s_out[i] = s_muted ? 0.0f : o / 32768.0f * g_settings.gain_out / 55.0f;
     }
 }
 
