@@ -1,15 +1,18 @@
 /* Target fw3i: platform hooks for the Imperial UI (sim/ui_imperial/) on top of the
  * firmware3 stand-ins in sim_hal_fw3.c. Settings persist in browser localStorage. */
 #include <string.h>
+#include <math.h>
 #include "ui_imperial.h"
-#include "settings.h"
-#include "dsp.h"
+#include "voicefx.h"
+
+/* sim_audio_fw3i.c */
+void sim_audio_params(int volume, int brightness, const voicefx_params_t *fx);
+void sim_audio_monitor(bool on);
 
 #define IMPORT(n) __attribute__((import_module("env"), import_name(n)))
 IMPORT("js_settings_load") int js_settings_load(void *buf, int len);
 IMPORT("js_settings_save") void js_settings_save(const void *buf, int len);
 
-bool audio_is_keyed(void) { return dsp_is_keyed(); }
 
 /* simulated sensors, driven by the page's sliders (device: AXP2101 + QMI8658) */
 #define EXPORT(n) __attribute__((export_name(n)))
@@ -40,6 +43,9 @@ void ui_platform_defaults(ui_settings_t *s)
     s->show_temp = 1;
     s->temp_f = 1;
     s->skin = 0;
+    s->voice_auto = 0;
+    s->voice_target = 0;
+    s->voice_learned = 0;
 }
 
 void ui_platform_load(ui_settings_t *s)
@@ -52,14 +58,32 @@ void ui_platform_load(ui_settings_t *s)
     }
 }
 
+static voicefx_params_t fx_from(const ui_settings_t *s)
+{
+    voicefx_params_t p = {s->effect, s->vox, s->stat, s->click, false, 1.0f, 1.0f};
+    if (s->voice_auto && s->voice_learned) {
+        p.shift_on = true;
+        p.pitch_ratio = powf(2.0f, s->voice_st100 / 1200.0f);
+        p.formant_ratio = 1.0f + s->voice_tone10 / 1000.0f;
+    }
+    return p;
+}
+
+static ui_settings_t s_last;
+
 void ui_platform_apply(const ui_settings_t *s)
 {
-    g_settings.gain_out = s->volume;
-    g_settings.fx_intensity = s->effect;
-    g_settings.vox_thresh = s->vox;
-    g_settings.static_lvl = s->stat;
-    g_settings.click_vol = s->click;
-    g_settings.brightness = s->brightness;
-    memcpy(g_settings.callsign, s->callsign, sizeof(g_settings.callsign));
+    voicefx_params_t p = fx_from(s);
+    sim_audio_params(s->volume, s->brightness, &p);
+    s_last = *s;
     js_settings_save(s, sizeof(*s));
 }
+
+void ui_platform_voice_live(bool on, float pitch_ratio, float formant_ratio)
+{
+    voicefx_params_t p = fx_from(&s_last);
+    if (on) { p.shift_on = true; p.pitch_ratio = pitch_ratio; p.formant_ratio = formant_ratio; }
+    sim_audio_params(s_last.volume, s_last.brightness, &p);
+}
+
+void ui_platform_voice_monitor(bool on) { sim_audio_monitor(on); }

@@ -19,6 +19,13 @@ typedef struct {
     uint8_t show_temp;   /* secret temp readout on readout line 1 */
     uint8_t temp_f;      /* 1 = Fahrenheit, 0 = Celsius        */
     uint8_t skin;        /* active skin (0 = built-in default) */
+    /* VOICE page: learned shift onto a target voice */
+    uint8_t voice_auto;     /* 1 = shift on (needs voice_learned)          */
+    uint8_t voice_target;   /* 0 = TROOPER (1 = CLONE, later)               */
+    uint8_t voice_learned;  /* a learn has been accepted                    */
+    int16_t voice_st100;    /* pitch shift, semitones x 100 (-950 = -9.5 st) */
+    int16_t voice_tone10;   /* tone shift, percent x 10 (-180 = -18 %)       */
+    int16_t voice_f0;       /* wearer's learned pitch, Hz (for the display)  */
 } ui_settings_t;
 
 /* platform hooks */
@@ -34,6 +41,10 @@ bool ui_platform_temp(float *celsius);           /* board temperature - QMI8658 
 
 /* audio state, beyond firmware3's audio.h */
 bool audio_is_keyed(void);                       /* VOX gate open (incl. hang/clicks) */
+/* VOICE page: try a shift live without saving (learn / adjust), and hear the output
+ * through the speaker while LIVE is muted */
+void ui_platform_voice_live(bool on, float pitch_ratio, float formant_ratio);
+void ui_platform_voice_monitor(bool on);
 
 /* skin (static background layer, RGB565 368x448) + fonts */
 extern const uint8_t skin_main_px[], skin_lock_px[], skin_settings_value_px[],

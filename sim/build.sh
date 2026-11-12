@@ -102,7 +102,8 @@ if [ "$TARGET" = fw3i ]; then
   if [ ! -f "$OUT/skins_gen.c" ] || [ -n "$(find "$SIM/../design/skins/packs" -newer "$OUT/skins_gen.c" -print -quit)" ]; then
     python3 "$SIM/tools/gen_skins.py" "$SIM/../design/skins/packs" "$OUT/skins_gen.c"
   fi
-  SRCS=("$FW/ui_imperial.c" "$OUT/skins_gen.c" "$FW1/dsp.c" "$SIM/src/sim_main.c" "$SIM/src/sim_hal_fw3.c" "$SIM/src/sim_hal_fw3i.c" "$SIM/libc/libc.c" "$OUT/sim_assets.c")
+  F3="$SIM/../firmware3/main"   # the new voice chain: voice shift + radio effect + key sounds
+  SRCS=("$FW/ui_imperial.c" "$OUT/skins_gen.c" "$F3/voicefx.c" "$F3/vshift.c" "$F3/keysnd.c" "$SIM/src/sim_main.c" "$SIM/src/sim_audio_fw3i.c" "$SIM/src/sim_hal_fw3i.c" "$SIM/libc/libc.c" "$OUT/sim_assets.c")
 else
   SRCS=("$FW/ui.c" "$FW1/dsp.c" "$SIM/src/sim_main.c" "$SIM/src/sim_hal_$TARGET.c" "$SIM/libc/libc.c" "$OUT/sim_assets.c")
 fi

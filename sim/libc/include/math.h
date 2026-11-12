@@ -21,3 +21,9 @@ static inline float floorf(float x) { return __builtin_floorf(x); }
 static inline float cosf(float x)   { return (float)cos(x); }
 static inline float sinf(float x)   { return (float)sin(x); }
 static inline float tanhf(float x)  { double e = exp(2.0 * x); return (float)((e - 1) / (e + 1)); }
+static inline float expf(float x)   { return (float)exp(x); }
+static inline float logf(float x)   { return (float)log(x); }
+static inline float log2f(float x)  { return (float)(log(x) * 1.4426950408889634); }
+static inline float powf(float a, float b) { return (float)pow(a, b); }
+static inline float atan2f(float y, float x) { return (float)atan2(y, x); }
+static inline double log2(double x) { return log(x) * 1.4426950408889634; }
