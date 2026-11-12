@@ -47,7 +47,7 @@ h1 { font: 600 clamp(28px, 4vw, 40px)/1.1 var(--display); margin: 0; letter-spac
 }
 .board-top { width: 100%; display: flex; justify-content: space-between; font: 500 11px/1 var(--mono); color: #6f9a80; letter-spacing: .08em; }
 .screen-frame { background: #050606; padding: 10px; border-radius: 8px; border: 1px solid #000; max-width: 100%; }
-canvas#screen { display: block; image-rendering: pixelated; max-width: 100%; height: auto; touch-action: none; cursor: crosshair; transition: filter .2s; }
+canvas#screen { display: block; image-rendering: auto; max-width: 100%; height: auto; touch-action: none; cursor: crosshair; transition: filter .2s; }
 .board-bottom { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .btn-boot {
   display: flex; align-items: center; gap: 10px; background: none; border: 0; color: #b9cfc1;
@@ -250,7 +250,8 @@ function frame() {
   sim.loop();
   const d = sim.dirty();
   if (d !== lastDirty) { img.data.set(sim.pixels()); ctx2d.putImageData(img, 0, 0); lastDirty = d; }
-  canvas.style.filter = `brightness(${0.25 + 0.75 * sim.brightness() / 100})`;
+  /* AMOLED stays bright at mid settings; a light touch reads truer than a heavy dim */
+  canvas.style.filter = `brightness(${0.55 + 0.45 * sim.brightness() / 100})`;
   const k = sim.keyed();
   $('voxLamp').classList.toggle('on', k); $('voxTxt').textContent = k ? 'keyed' : 'idle';
   $('heap').textContent = (sim.memUsed() / 1024).toFixed(1) + ' KB';
