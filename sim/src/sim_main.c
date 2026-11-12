@@ -5,9 +5,7 @@
 #include <stdbool.h>
 #include "lvgl.h"
 #include "ui.h"
-#include "audio.h"
-#include "settings.h"
-#include "bsp_display.h"
+#include "sim_hal.h"
 
 #define EXPORT(n) __attribute__((export_name(n)))
 
@@ -52,10 +50,7 @@ EXPORT("sim_init") void sim_init(int w, int h)
     if (h > MAX_H) h = MAX_H;
     s_w = w; s_h = h;
 
-    /* same order as firmware app_main */
-    settings_load();
-    bsp_display_set_brightness(g_settings.brightness);
-    audio_init();
+    sim_hal_init();   /* settings / backlight / audio, as the target's app_main */
 
     lv_init();
     lv_disp_draw_buf_init(&s_draw_buf, s_buf, NULL, MAX_W * 40);
@@ -90,7 +85,5 @@ EXPORT("sim_mem_used") int sim_mem_used(void)
     return (int)(m.total_size - m.free_size);
 }
 
-/* BOOT button actions (firmware: click = mute, 3 s = lock, 10 s = factory reset) */
-EXPORT("sim_boot_click") void sim_boot_click(void) { ui_request_mute_toggle(); }
-EXPORT("sim_boot_lock")  void sim_boot_lock(void)  { ui_request_lock(); }
-EXPORT("sim_boot_reset") void sim_boot_reset(void) { ui_request_factory_reset(); }
+EXPORT("sim_default_w") int sim_default_w(void) { return SIM_DEFAULT_W; }
+EXPORT("sim_default_h") int sim_default_h(void) { return SIM_DEFAULT_H; }

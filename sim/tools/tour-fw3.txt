@@ -1,0 +1,8 @@
+# firmware3 (AMOLED-1.8): boots MUTED, BOOT toggles LIVE; meter follows the mic either way
+signal 0.5 800
+shot 01_muted_talking
+boot click
+signal 0.5 800
+shot 02_live_talking
+wait 1500
+shot 03_live_quiet

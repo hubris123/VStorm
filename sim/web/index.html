@@ -87,6 +87,10 @@ label.chk { display: flex; gap: 8px; align-items: center; font-size: 14px; curso
 .ro b { font: 500 15px/1.3 var(--mono); font-variant-numeric: tabular-nums; }
 .lamp { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #2a2f33; margin-right: 6px; vertical-align: 1px; }
 .lamp.on { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.tune { display: grid; grid-template-columns: auto minmax(0, 1fr) 3ch; gap: 8px 12px; align-items: center; font-size: 14px; }
+.tune input { width: 100%; accent-color: var(--blue); }
+.tune output { font: 500 14px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+pre.code { margin: 0; background: #0f1316; border: 1px solid var(--line); border-radius: 6px; padding: 10px; font: 12.5px/1.5 var(--mono); color: var(--ink); overflow-x: auto; }
 .status { font: 400 13px var(--mono); color: var(--amber); min-height: 1.2em; margin: 0; }
 footer { color: var(--mute); font-size: 13px; max-width: 70ch; }
 footer code { font: 12px var(--mono); color: var(--ink); }
@@ -97,17 +101,17 @@ footer code { font: 12px var(--mono); color: var(--ink); }
   <header>
     <div class="eyebrow">VStorm · firmware running in your browser</div>
     <h1>VStorm Virtual Console</h1>
-    <p class="lede">The real touchscreen UI and stormtrooper voice effect from the firmware, compiled to WebAssembly. Tap the screen like the device. Settings are kept in this browser.</p>
+    <p class="lede">The device's real UI and stormtrooper voice effect, compiled from the firmware to WebAssembly. Press BOOT to go LIVE, feed it a voice, and tune the effect before you flash.</p>
   </header>
 
   <div class="bench">
     <section class="board" aria-label="Simulated board">
-      <div class="board-top"><span id="boardName">ESP32-S3-TOUCH-LCD-1.47</span><span id="boardRes">320 × 172</span></div>
+      <div class="board-top"><span id="boardName">ESP32-S3-TOUCH-AMOLED-1.8</span><span id="boardRes">368 × 448</span></div>
       <div class="screen-frame"><canvas id="screen" width="320" height="172" aria-label="Device touchscreen"></canvas></div>
       <div class="board-bottom">
         <button class="btn-boot" id="boot" type="button" aria-describedby="bootHelp">
           <span class="cap" aria-hidden="true"></span>
-          <span>BOOT<small id="bootHelp">tap: mute · hold 3 s: lock · 10 s: reset</small></span>
+          <span>BOOT<small id="bootHelp">tap: MUTED ↔ LIVE</small></span>
         </button>
         <div class="hold" aria-hidden="true"><i id="holdBar"></i></div>
         <span class="silk">USB-C</span>
@@ -136,18 +140,32 @@ footer code { font: 12px var(--mono); color: var(--ink); }
           <div class="ro"><span>LVGL heap</span><b id="heap">–</b></div>
           <div class="ro"><span>DSP rate</span><b id="rate">–</b></div>
         </div>
-        <p class="note">The heap is the same 64 KB pool the firmware gets, so a screen that runs out here runs out on the device.</p>
+        <p class="note" id="heapNote"></p>
       </section>
 
       <section class="card" aria-labelledby="hBoard">
         <h2 id="hBoard">Board</h2>
-        <select id="res" aria-label="Board and display size">
-          <option value="320x172|ESP32-S3-TOUCH-LCD-1.47">1.47" LCD · 320 × 172 (current)</option>
-          <option value="284x240|ESP32-S3-TOUCH-LCD-1.83">1.83" LCD · 284 × 240 (candidate)</option>
-          <option value="448x368|ESP32-S3-TOUCH-AMOLED-1.8">1.8" AMOLED · 448 × 368 (candidate)</option>
-          <option value="480x480|ESP32-S3-TOUCH-AMOLED-2.16">2.16" AMOLED · 480 × 480 (candidate)</option>
+        <select id="res" aria-label="Board and firmware">
+          <option value="fw3">1.8" AMOLED · firmware3 (active)</option>
+          <option value="fw1">1.47" LCD · firmware (original, full menus)</option>
         </select>
-        <p class="note">The UI is laid out for 320 × 172 today. The candidate sizes show how much re-layout each new board needs before it goes on hardware.</p>
+        <p class="note" id="boardNote"></p>
+      </section>
+
+      <section class="card" aria-labelledby="hTune" id="tuneCard">
+        <h2 id="hTune">Tune the effect</h2>
+        <div class="tune">
+          <label for="tFx">Effect</label><input type="range" id="tFx" min="0" max="100"><output id="oFx"></output>
+          <label for="tVox">VOX</label><input type="range" id="tVox" min="0" max="100"><output id="oVox"></output>
+          <label for="tStatic">Static</label><input type="range" id="tStatic" min="0" max="100"><output id="oStatic"></output>
+          <label for="tClick">Click</label><input type="range" id="tClick" min="0" max="100"><output id="oClick"></output>
+        </div>
+        <pre class="code" id="tuneCode"></pre>
+        <div class="row">
+          <button type="button" class="act" id="tuneCopy">Copy for audio.c</button>
+          <button type="button" class="act" id="tuneReset">Back to firmware values</button>
+        </div>
+        <p class="note">These are the four DSP settings at the top of <code>firmware3/main/audio.c</code>. VOX is the gate's open level: a sustained loudness of 22 means about 22% of full scale. The browser mic isn't calibrated like the ES8311's 18 dB gain, so set VOX on the device last.</p>
       </section>
 
       <section class="card" aria-labelledby="hRender" id="renderCard">
@@ -169,9 +187,28 @@ import { createSim } from './vstorm-core.js';   // bundle.mjs inlines this
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('screen'), ctx2d = canvas.getContext('2d');
-const wasmBytes = await (globalThis.VSTORM_WASM_B64
-  ? Uint8Array.from(atob(globalThis.VSTORM_WASM_B64), c => c.charCodeAt(0))
-  : fetch('./vstorm.wasm').then(r => r.arrayBuffer()));
+const wasmCache = {};
+async function loadWasm(t) {
+  if (!wasmCache[t]) wasmCache[t] = globalThis.VSTORM_WASM_B64
+    ? Uint8Array.from(atob(globalThis.VSTORM_WASM_B64[t]), c => c.charCodeAt(0))
+    : new Uint8Array(await fetch(`./vstorm-${t}.wasm`).then(r => r.arrayBuffer()));
+  return wasmCache[t];
+}
+const TARGETS = {
+  fw3: { name: 'ESP32-S3-TOUCH-AMOLED-1.8', radius: 45, boot: 'tap: MUTED ↔ LIVE',
+         heap: 'firmware3 uses the system heap for LVGL, so this is a guide, not a limit.',
+         note: 'The board in firmware3/. Corners are rounded like the panel, which clips about 45 px. Touch is dead on the bench unit, so BOOT and VOX are the controls.' },
+  fw1: { name: 'ESP32-S3-TOUCH-LCD-1.47', radius: 0, boot: 'tap: mute · hold 3 s: lock · 10 s: reset',
+         heap: 'Same 64 KB LVGL pool as firmware/, so a screen that runs out here runs out on that board.',
+         note: 'The original build in firmware/. It has the settings, callsign and lock screens still to be ported to firmware3; tap the screen to use them.' },
+};
+let target = 'fw3';
+const TUNE_IDS = { fx: 'Fx', vox: 'Vox', static: 'Static', click: 'Click' };
+const FW3_DSP = { fx: 70, vox: 22, static: 15, click: 60 };   /* firmware3/main/audio.c */
+let tune = { ...FW3_DSP };
+try { tune = { ...FW3_DSP, ...JSON.parse(localStorage.getItem('vstorm.tune') || '{}') }; } catch {}
+try { if (TARGETS[localStorage.getItem('vstorm.target')]) target = localStorage.getItem('vstorm.target'); } catch {}
+$('res').value = target;
 
 /* settings blob <-> localStorage (best effort) */
 const store = new Map();
@@ -185,17 +222,24 @@ function persist() {
 }
 
 let sim, img, lastDirty = -1, dspRate = 16000;
-async function boot(w, h) {
-  sim = await createSim(wasmBytes, { width: w, height: h, store, onSave: persist,
-    onFactoryReset: () => { persist(); setTimeout(() => boot(w, h), 0); } });
+async function boot() {
+  const T = TARGETS[target];
+  sim = await createSim(await loadWasm(target), { store, onSave: persist,
+    onFactoryReset: () => { persist(); setTimeout(boot, 0); } });
+  const w = sim.width, h = sim.height;
+  applyTune();
+  $('boardName').textContent = T.name; $('boardRes').textContent = `${w} × ${h}`;
+  $('bootHelp').textContent = T.boot; $('heapNote').textContent = T.heap; $('boardNote').textContent = T.note;
+  $('tuneCard').hidden = target !== 'fw3';
   sim.audioSetRate(dspRate);
   canvas.width = w; canvas.height = h;
   const scale = Math.max(1, Math.floor(Math.min(640 / w, 520 / h)));
   canvas.style.width = (w * scale) + 'px';
+  canvas.style.borderRadius = (T.radius / w * 100) + '% / ' + (T.radius / h * 100) + '%';
   img = ctx2d.createImageData(w, h);
   lastDirty = -1;
 }
-await boot(320, 172);
+await boot();
 
 function frame() {
   sim.loop();
@@ -224,6 +268,7 @@ const bootBtn = $('boot'), bar = $('holdBar');
 let holdT0 = 0, holdRaf = 0, fired = 0;
 function holdTick() {
   const t = (performance.now() - holdT0) / 1000;
+  if (target === 'fw3') { holdRaf = requestAnimationFrame(holdTick); return; }   /* fw3: press only */
   if (t >= 3 && fired < 1) { fired = 1; sim.bootLock(); }
   if (t >= 10 && fired < 2) { fired = 2; sim.bootReset(); }
   bar.style.width = Math.min(100, t * 10) + '%';
@@ -245,11 +290,28 @@ bootBtn.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter')
 
 /* board size */
 $('res').addEventListener('change', async e => {
-  const [res, name] = e.target.value.split('|');
-  const [w, h] = res.split('x').map(Number);
-  $('boardName').textContent = name; $('boardRes').textContent = `${w} × ${h}`;
-  await boot(w, h);
+  target = e.target.value;
+  try { localStorage.setItem('vstorm.target', target); } catch {}
+  await boot();
+  if (ac) sim.audioSetRate(dspRate);
 });
+
+/* firmware3 effect tuning */
+function applyTune() {
+  sim.setDsp(tune.fx, tune.vox, tune.static, tune.click);
+  for (const [k, id] of Object.entries(TUNE_IDS)) { $('t' + id).value = tune[k]; $('o' + id).textContent = tune[k]; }
+  $('tuneCode').textContent =
+    `static int s_fx_intensity = ${tune.fx};\nstatic int s_vox_thresh   = ${tune.vox};\n` +
+    `static int s_static_lvl   = ${tune.static};\nstatic int s_click_vol    = ${tune.click};`;
+  try { localStorage.setItem('vstorm.tune', JSON.stringify(tune)); } catch {}
+}
+for (const [k, id] of Object.entries(TUNE_IDS))
+  $('t' + id).addEventListener('input', e => { tune[k] = +e.target.value; applyTune(); });
+$('tuneReset').onclick = () => { tune = { ...FW3_DSP }; applyTune(); };
+$('tuneCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('tuneCode').textContent); status('Copied. Paste over the four lines near the top of firmware3/main/audio.c.'); }
+  catch { getSelection().selectAllChildren($('tuneCode')); status('Press Ctrl+C to copy the selected lines.'); }
+};
 
 /* ---------- audio ---------- */
 let ac, proc, source = 'off', srcNode, micStream, fileBuf;
@@ -349,8 +411,10 @@ $('renderIn').onchange = async (e) => {
     const oac = new OfflineAudioContext(1, len, 16000);
     const s = oac.createBufferSource(); s.buffer = decoded; s.connect(oac.destination); s.start();
     const mono = (await oac.startRendering()).getChannelData(0);
-    const off = await createSim(wasmBytes, { store: new Map(store), now: () => 0 });
+    const off = await createSim(await loadWasm(target), { store: new Map(store), now: () => 0 });
     off.audioSetRate(16000);
+    off.setDsp(tune.fx, tune.vox, tune.static, tune.click);
+    if (target === 'fw3') off.bootClick();   /* firmware3 boots muted: go LIVE for the render */
     const outPcm = new Int16Array(len);
     for (let i = 0; i < len; i += 4096) {
       const y = off.audioProcess(mono.subarray(i, Math.min(len, i + 4096)));

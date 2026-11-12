@@ -12,19 +12,6 @@ separated** from the mic, so the **first real listening test** is the next step.
 
 Repo: https://github.com/hubris123/VStorm (branch `main`).
 
-## Virtual screen (added 2026-11-12) — use this before flashing
-`sim/` compiles the real `ui.c` + `dsp.c` to WebAssembly (LVGL 8.4.0, same heap/colour
-config). Browser: `cd sim && python3 -m http.server` → `/web/`. Headless screenshots:
-`node sim/tools/headless.mjs sim/tools/tour.txt out/`. Rebuild: `sim/build.sh` (clang only).
-UI changes get checked in the sim instead of the webcam rig; flash only for timing/audio-hardware checks.
-Board-size dropdown previews the UI at candidate board resolutions. See `sim/README.md`.
-
-Found by the sim (unverified on hardware):
-- VOX envelope was un-normalised → ADC noise held the gate open forever. Fixed in `dsp.c`.
-- 48 KB LVGL heap ran out (assert) on callsign page → lock. Raised to 64 KB in sdkconfig.defaults
-  (delete `firmware/sdkconfig` or set it in menuconfig so it takes effect).
-- Callsign dial selected letter doesn't draw (theme padding > 27 px dial width). Not fixed.
-
 ---
 
 ## Build / flash
@@ -128,6 +115,23 @@ registration (air-gapped). Licenses are **device-bound** (signed for the unit's
 eFuse ID) so a copied skin won't load on another device. Marketplace sells
 **original** sci-fi glyph skins (literal aurebesh only for free/personal
 sideload - Disney IP risk on paid Star Wars art).
+
+---
+
+## Virtual screen (`sim/`) - check UI and DSP changes here before flashing
+
+`sim/` compiles the real `firmware3/main/ui.c` (and the old `firmware/` UI) plus the voice
+DSP to WebAssembly with LVGL 8.4.0. Browser: `cd sim && python3 -m http.server` -> `/web/`.
+Shows the 368x448 rounded screen, BOOT = MUTED/LIVE, and has Effect/VOX/Static/Click sliders
+that print the four lines for `firmware3/main/audio.c`. Feed it the demo voice, a recording
+of your own voice, or the mic (local only). Headless screenshots:
+`node sim/tools/headless.mjs sim/tools/tour-fw3.txt out/`. Rebuild: `sim/build.sh all`
+(clang only, no ESP-IDF). Details: `sim/README.md`.
+
+Findings from the sim on the old 1.47 `firmware/` (fixed there; firmware3 already has the
+VOX fix): un-normalised VOX envelope held the gate open on ADC noise; 48 KB LVGL heap ran out
+going callsign page -> lock (raised to 64 KB); callsign dial's selected letter doesn't draw
+(theme padding wider than the 27 px dial) - check this when porting the callsign screen.
 
 ---
 

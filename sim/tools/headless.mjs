@@ -1,7 +1,7 @@
 // Headless virtual screen for scripted UI checks (no browser needed).
-//   node tools/headless.mjs script.txt [outdir]
+//   node tools/headless.mjs script.txt [outdir] [fw3|fw1]   (default fw3)
 // Script commands (one per line, # comments):
-//   size W H          display resolution (must come first; default 320 172)
+//   size W H          display resolution (must come first; default = the target board's)
 //   wait MS           advance simulated time
 //   tap X Y           press + release
 //   drag X1 Y1 X2 Y2  press, move, release
@@ -15,14 +15,14 @@ import { fileURLToPath } from 'node:url';
 import { createSim } from '../web/vstorm-core.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const [scriptFile, outDir = '.'] = process.argv.slice(2);
+const [scriptFile, outDir = '.', target = 'fw3'] = process.argv.slice(2);
 const lines = fs.readFileSync(scriptFile, 'utf8').split('\n').map(l => l.replace(/#.*/, '').trim()).filter(Boolean);
 fs.mkdirSync(outDir, { recursive: true });
 
 let clock = 0;
-let size = [320, 172];
+let size = [];
 if (lines[0]?.startsWith('size')) size = lines.shift().split(/\s+/).slice(1).map(Number);
-const sim = await createSim(fs.readFileSync(path.join(here, '../web/vstorm.wasm')),
+const sim = await createSim(fs.readFileSync(path.join(here, `../web/vstorm-${target}.wasm`)),
   { width: size[0], height: size[1], now: () => clock });
 
 let phase = 0;

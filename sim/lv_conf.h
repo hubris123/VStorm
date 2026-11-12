@@ -52,7 +52,10 @@
 #define LV_MEM_CUSTOM 0
 #if LV_MEM_CUSTOM == 0
     /*Size of the memory available for `lv_mem_alloc()` in bytes (>= 2kB)*/
-    #define LV_MEM_SIZE (64U * 1024U)          /*[bytes] matches firmware sdkconfig CONFIG_LV_MEM_SIZE_KILOBYTES=64*/
+    #ifndef SIM_LV_MEM_KB
+    #define SIM_LV_MEM_KB 64   /* fw1: firmware/sdkconfig.defaults CONFIG_LV_MEM_SIZE_KILOBYTES */
+    #endif
+    #define LV_MEM_SIZE (SIM_LV_MEM_KB * 1024U)          /*[bytes]*/
 
     /*Set an address for the memory pool instead of allocating it as a normal array. Can be in external SRAM too.*/
     #define LV_MEM_ADR 0     /*0: unused*/

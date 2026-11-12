@@ -1,4 +1,5 @@
-/* Simulator stand-ins for the firmware's hardware-facing modules:
+/* Target fw1: the original ESP32-S3-Touch-LCD-1.47 build in firmware/.
+ * Simulator stand-ins for the firmware's hardware-facing modules:
  *   settings.c (NVS)      -> browser localStorage via JS imports
  *   audio.c   (ADC/SDM)   -> Web Audio blocks pushed in by JS, same DSP (dsp.c)
  *   bsp_display brightness-> value read back by JS (CSS filter)
@@ -12,6 +13,8 @@
 #include "settings.h"
 #include "bsp_display.h"
 #include "esp_random.h"
+#include "ui.h"
+#include "sim_hal.h"
 
 #define EXPORT(n) __attribute__((export_name(n)))
 #define IMPORT(n) __attribute__((import_module("env"), import_name(n)))
@@ -119,3 +122,17 @@ EXPORT("sim_audio_process") void sim_audio_process(int n)
 }
 
 EXPORT("sim_audio_keyed") int sim_audio_keyed(void) { return dsp_is_keyed(); }
+
+void sim_hal_init(void)
+{
+    /* same order as firmware/main/main.c app_main */
+    settings_load();
+    bsp_display_set_brightness(g_settings.brightness);
+    audio_init();
+}
+
+/* BOOT button (firmware: click = mute, 3 s = lock, 10 s = factory reset) */
+EXPORT("sim_boot_click") void sim_boot_click(void) { ui_request_mute_toggle(); }
+EXPORT("sim_boot_lock")  void sim_boot_lock(void)  { ui_request_lock(); }
+EXPORT("sim_boot_reset") void sim_boot_reset(void) { ui_request_factory_reset(); }
+EXPORT("sim_dsp_set") void sim_dsp_set(int fx, int vox, int stat, int click) { (void)fx; (void)vox; (void)stat; (void)click; }

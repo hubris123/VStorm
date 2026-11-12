@@ -1,8 +1,7 @@
 // VStorm virtual screen core: loads vstorm.wasm and exposes a small API.
 // Shared by the browser page (index.html) and the headless tools (tools/*.mjs).
 export async function createSim(wasmBytes, opts = {}) {
-  const w = opts.width ?? 320, h = opts.height ?? 172;
-  const store = opts.store ?? new Map();       // settings blob storage
+    const store = opts.store ?? new Map();       // settings blob storage
   const now = opts.now ?? (() => performance.now());
   const t0 = now();
   let inst, mem;
@@ -25,6 +24,7 @@ export async function createSim(wasmBytes, opts = {}) {
   ({ instance: inst } = await WebAssembly.instantiate(wasmBytes, { env }));
   const x = inst.exports;
   mem = x.memory;
+  const w = opts.width ?? x.sim_default_w(), h = opts.height ?? x.sim_default_h();
   x.sim_init(w, h);
   return {
     width: w, height: h, exports: x,
@@ -46,5 +46,7 @@ export async function createSim(wasmBytes, opts = {}) {
       return new Float32Array(mem.buffer, x.sim_audio_out_ptr(), n).slice();
     },
     keyed: () => !!x.sim_audio_keyed(),
+    // firmware3 effect parameters (no-op on fw1, which uses its settings screen)
+    setDsp: (fx, vox, stat, click) => x.sim_dsp_set(fx, vox, stat, click),
   };
 }
