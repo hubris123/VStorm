@@ -474,9 +474,9 @@ def layout_hero(sc, c, t):
     """big rotor top-left, scope top-right, arc meter, lamps + readout below"""
     p = PAL[c["pal"]]
     ROTORS[c["rotor"]](sc, 84, 128, p, t, **({"r": 62} if c["rotor"] in ("scomp", "reticle", "radar", "gear", "square") else {}))
-    scope_rect(sc, (166, 62, 350, 152), p, c["frame"], t)
+    scope_rect(sc, (166, 66, 350, 190), p, c["frame"], t)   # same height + centre (y 128) as the rotor
     meter_arc(sc, 184, 282, 44, p, 64)          # centre of the middle row, between lamps and readout
-    batt_h(sc, 166, 350, 160)
+    batt_h(sc, 166, 350, 199)
     LAMPS[c["lamps"]](sc, 84, 252, p, c["seed"]) if c["lamps"] != "switcher" else lamps_switcher(sc, 84, 256, p, c["seed"], cols=6, rows=4)
     readout(sc, 300, 260, p, c["seed"], lines=3, pitch=26)
 
