@@ -158,6 +158,10 @@ hex table, temp tag. Rules:
 - Key press: instant fill, 80 ms release.
 - Respect frame rate: the SH8601 path redraws over QSPI; keep animated areas small.
 
+**Soft landing:** voice displays (scopes, meters, bar graphs, waterfalls, gauges) rise with
+the voice at once but float down: the shown level eases off over about 0.4 s instead of
+dropping instantly, which reads as a natural voice trace.
+
 ## 6a. Reacting to the voice (VOX keyed)
 
 Trigger is the **VOX gate** (open while speaking + ~350 ms hang), not the raw level, so it follows

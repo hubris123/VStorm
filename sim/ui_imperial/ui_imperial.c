@@ -2151,7 +2151,14 @@ static void fast_cb(lv_timer_t *t)
     reset_tick();
     console_t *c = active_console();
     if (!c) return;
-    int lvl = audio_get_level();
+    /* soft landing: the display level rises at once but floats down (about 0.4 s from full
+     * to quiet), so traces and meters ease off instead of dropping off a cliff */
+    static float shown_lvl;
+    int raw = audio_get_level();
+    if (raw >= shown_lvl) shown_lvl = raw;
+    else shown_lvl -= (shown_lvl - raw) * 0.22f + 1.0f;
+    if (shown_lvl < raw) shown_lvl = raw;
+    int lvl = (int)(shown_lvl + 0.5f);
     bool keyed = audio_is_keyed(), muted = audio_is_muted();
     hist_push(lvl);
     fast_ticks++;
