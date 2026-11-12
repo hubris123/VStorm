@@ -14,7 +14,9 @@ bool audio_is_keyed(void) { return dsp_is_keyed(); }
 /* simulated sensors, driven by the page's sliders (device: AXP2101 + QMI8658) */
 #define EXPORT(n) __attribute__((export_name(n)))
 static int s_batt = 78;
-static float s_tx, s_ty;
+static float s_tx, s_ty, s_temp = 31.0f;
+EXPORT("sim_set_temp") void sim_set_temp(float c) { s_temp = c; }
+bool ui_platform_temp(float *c) { *c = s_temp; return true; }
 EXPORT("sim_set_battery") void sim_set_battery(int pct) { s_batt = pct; }
 EXPORT("sim_set_tilt") void sim_set_tilt(float x, float y) { s_tx = x; s_ty = y; }
 int ui_platform_battery(void) { return s_batt; }
@@ -33,6 +35,8 @@ void ui_platform_defaults(ui_settings_t *s)
     s->show_batt = 1;
     s->show_tilt = 1;
     s->tilt_quiet = 1;
+    s->show_temp = 1;
+    s->temp_f = 1;
 }
 
 void ui_platform_load(ui_settings_t *s)

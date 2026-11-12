@@ -9,6 +9,7 @@
 //   signal LEVEL MS   feed a synthetic voice-band signal (0..1 amplitude)
 //   battery PCT       simulated battery % (fw3i)
 //   tilt X Y          simulated tilt in degrees (fw3i)
+//   temp C            simulated board temperature in Celsius (fw3i)
 //   shot NAME         write NAME.png
 import fs from 'node:fs';
 import path from 'node:path';
@@ -66,6 +67,7 @@ for (const l of lines) {
     case 'boot': ({ click: sim.bootClick, lock: sim.bootLock, reset: sim.bootReset })[a[0]](); step(60); break;
     case 'signal': step(n[1], n[0]); break;
     case 'battery': sim.exports.sim_set_battery?.(n[0]); step(100); break;
+    case 'temp': sim.exports.sim_set_temp?.(n[0]); step(800); break;
     case 'tilt': sim.exports.sim_set_tilt?.(n[0], n[1]); step(600); break;
     case 'shot': png(path.join(outDir, a[0] + '.png')); console.log('shot', a[0], 'lvgl heap used', sim.memUsed(), 'B'); break;
     default: throw new Error('unknown command: ' + l);

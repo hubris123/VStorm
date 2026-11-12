@@ -80,11 +80,12 @@ def lock_bg():
     return sc
 
 
-def settings_common(sc):
+def settings_common(sc, frame=True):
     for i in range(10):                                     # page pip wells (10 settings pages)
         x = 46 + i * 27
         sc.rect(x, 46, x + 22, 50, fill=m.DIM)
-    m.notched_frame(sc, 16, 60, 352, 184)
+    if frame:
+        m.notched_frame(sc, 16, 60, 352, 184)
     for x in (16, 132, 248):
         wells(sc, x, 320, 104, 114)
 
@@ -130,16 +131,20 @@ def callsign_bg():
     return sc
 
 
-def settings_three_bg():
-    """sensors page: three toggle keys in the same columns as the bottom row"""
+def settings_sensors_bg():
+    """sensors page: TEMP | C/F | readings panel over BATTERY | TILT GRID | QUIET ONLY,
+    all in the bottom-row columns"""
     sc = m.Screen()
-    settings_common(sc)
+    settings_common(sc, frame=False)
+    wells(sc, 16, 88, 104, 104)
+    wells(sc, 132, 88, 104, 104)
+    m.notched_frame(sc, 248, 88, 352, 192, n=10)
     for x in (16, 132, 248):
         wells(sc, x, 204, 104, 104)
     return sc
 
 
-SKINS = {"main": main_bg, "lock": lock_bg, "settings_value": settings_value_bg, "settings_three": settings_three_bg,
+SKINS = {"main": main_bg, "lock": lock_bg, "settings_value": settings_value_bg, "settings_sensors": settings_sensors_bg,
          "settings_wide": settings_wide_bg, "callsign": callsign_bg}
 
 

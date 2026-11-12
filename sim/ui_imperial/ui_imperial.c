@@ -34,7 +34,7 @@ static const uint32_t LAMP_HEX[4] = {0x979B9A, 0xBF5B16, 0xD00A1B, 0x459FC2}; /*
 #define SCR_W 368
 #define SCR_H 448
 
-static lv_font_t *f_aureb13, *f_aureb12, *f_aureng26, *f_aureng20, *f_aureng28, *f_aureng42, *f_aureng34, *f_aureng22;
+static lv_font_t *f_aureb13, *f_aureb12, *f_aureng26, *f_aureng20, *f_aureng28, *f_aureng42, *f_aureng34, *f_aureng22, *f_aureng18;
 static ui_settings_t S;
 
 /* ---------------- helpers ---------------- */
@@ -59,7 +59,7 @@ static lv_img_dsc_t mk_skin(const uint8_t *px)
     d.data = px;
     return d;
 }
-static lv_img_dsc_t skin_main, skin_lock, skin_set_value, skin_set_wide, skin_callsign, skin_set_three;
+static lv_img_dsc_t skin_main, skin_lock, skin_set_value, skin_set_wide, skin_callsign, skin_set_sensors;
 
 static lv_obj_t *make_screen(const lv_img_dsc_t *skin, lv_obj_t **bg_out)
 {
@@ -219,6 +219,8 @@ typedef struct {
     lv_obj_t *batt;                       /* battery bar beside the meter */
     lv_obj_t *tilt_v, *tilt_h;            /* tilt crosshair lines in the scope */
     float tilt_x, tilt_y, tilt_opa;
+    lv_obj_t *t_word, *t_num, *t_unit;    /* secret temp: Aurebesh TEMP + TK-style digits + Aurebesh unit */
+    float temp_c;
 } console_t;
 
 static console_t con_main, con_lock;
@@ -386,6 +388,36 @@ static void tick_place(console_t *c, int i)
                    CLUSTER_Y + LAMP_ROW[i] - lv_obj_get_height(c->tick[i]) / 2);
 }
 
+/* secret temp on readout line 0: "TEMP" and the unit in Aurebesh, the number in the
+ * callsign's TK-style digits, centred as one group over the SYS key */
+static void temp_update(console_t *c)
+{
+    float tc = 0;
+    bool have = S.show_temp && ui_platform_temp(&tc);
+    if (!have) {
+        lv_obj_add_flag(c->t_word, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(c->t_num, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(c->t_unit, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(c->tick[0], LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    c->temp_c += (tc - c->temp_c) * 0.3f;                  /* settle, don't flicker */
+    lv_obj_add_flag(c->tick[0], LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(c->t_word, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(c->t_num, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(c->t_unit, LV_OBJ_FLAG_HIDDEN);
+    float v = S.temp_f ? c->temp_c * 9.0f / 5.0f + 32.0f : c->temp_c;
+    int iv = (int)(v + (v < 0 ? -0.5f : 0.5f));
+    lv_label_set_text_fmt(c->t_num, "%d", iv);
+    lv_label_set_text_static(c->t_unit, S.temp_f ? "F" : "C");
+    lv_obj_update_layout(c->t_word);
+    int w1 = lv_obj_get_width(c->t_word), w2 = lv_obj_get_width(c->t_num), w3 = lv_obj_get_width(c->t_unit);
+    int gap = 6, x = TICK_CX - (w1 + gap + w2 + 4 + w3) / 2, cy = CLUSTER_Y + LAMP_ROW[0];
+    lv_obj_set_pos(c->t_word, x, cy - lv_obj_get_height(c->t_word) / 2);
+    lv_obj_set_pos(c->t_num, x + w1 + gap, cy - lv_obj_get_height(c->t_num) / 2);
+    lv_obj_set_pos(c->t_unit, x + w1 + gap + w2 + 4, cy - lv_obj_get_height(c->t_unit) / 2);
+}
+
 static void make_ticker(console_t *c)
 {
     for (int i = 0; i < TICK_LINES; i++) {
@@ -394,11 +426,16 @@ static void make_ticker(console_t *c)
         tick_place(c, i);
     }
     c->tick_next = 8;
+    c->t_word = aureb_label(c->scr, "TEMP", f_aureb13, COL_TICK);
+    c->t_num = label(c->scr, "0", f_aureng18 ? f_aureng18 : &lv_font_montserrat_16, COL_TICK);
+    c->t_unit = aureb_label(c->scr, "F", f_aureb13, COL_TICK);
+    c->temp_c = 30;
 }
 
 static void tick_change(console_t *c)
 {
-    int i = rnd() % TICK_LINES, w;
+    int first = S.show_temp ? 1 : 0;                       /* line 0 holds the temp readout */
+    int i = first + rnd() % (TICK_LINES - first), w;
     for (;;) {
         w = rnd() % NWORDS;
         bool used = false;
@@ -625,8 +662,9 @@ static const struct { const char *title, *desc; int min, max; } PAGE[NPAGES] = {
 static int page;
 static lv_obj_t *set_bg, *set_title, *set_count, *set_pip;
 static lv_obj_t *grp_value, *grp_cs, *grp_reset, *grp_disp, *grp_sens;   /* per-page content groups */
-static cap_t cap_tog[3];
-static lv_obj_t *sens_batt, *sens_tilt;
+#define NTOG 5
+static cap_t cap_tog[NTOG];          /* 0 BATTERY 1 TILT GRID 2 QUIET ONLY 3 TEMP 4 C/F */
+static lv_obj_t *sens_batt, *sens_tilt, *sens_temp;
 static lv_obj_t *g_arc, *g_val, *g_desc, *g_bar[10], *g_tick[2], *g_lamp[3], *g_spin;
 static lv_obj_t *cs_show;
 static lv_obj_t *rs_seg[20];
@@ -682,11 +720,11 @@ static void page_show(void)
     lv_obj_set_x(set_pip, 46 + page * 27);
     bool three = (page == P_SENSORS);
     bool wide = (page == P_CALLSIGN || page == P_RESET || page == P_DISPLAY);
-    lv_img_set_src(set_bg, three ? &skin_set_three : wide ? &skin_set_wide : &skin_set_value);
+    lv_img_set_src(set_bg, three ? &skin_set_sensors : wide ? &skin_set_wide : &skin_set_value);
     if (wide || three) { lv_obj_add_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
     else { lv_obj_clear_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
     if (three) lv_obj_clear_flag(grp_sens, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_sens, LV_OBJ_FLAG_HIDDEN);
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < NTOG; i++) {
         if (three) lv_obj_clear_flag(cap_tog[i].cap, LV_OBJ_FLAG_HIDDEN);
         else lv_obj_add_flag(cap_tog[i].cap, LV_OBJ_FLAG_HIDDEN);
     }
@@ -727,15 +765,30 @@ static void page_show(void)
 }
 
 /* ---- sensors page: three on/off keys (lit green = on) + live readings ---- */
-static uint8_t *tog_val(int i) { return i == 0 ? &S.show_batt : i == 1 ? &S.show_tilt : &S.tilt_quiet; }
+static uint8_t *tog_val(int i)
+{
+    switch (i) {
+    case 0: return &S.show_batt;
+    case 1: return &S.show_tilt;
+    case 2: return &S.tilt_quiet;
+    case 3: return &S.show_temp;
+    default: return &S.temp_f;
+    }
+}
 
 static void toggles_refresh(void)
 {
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         bool on = *tog_val(i);
         lv_label_set_text(cap_tog[i].sub, on ? "ON" : "OFF");
         cap_style(&cap_tog[i], on);
     }
+    /* unit selector: not on/off, so never lit */
+    lv_label_set_text(cap_tog[4].lbl, S.temp_f ? "F" : "C");
+    lv_label_set_text(cap_tog[4].sub, S.temp_f ? "FAHRENHEIT" : "CELSIUS");
+    sub_fit(&cap_tog[4]);
+    lv_obj_align(cap_tog[4].lbl, LV_ALIGN_CENTER, 0, -12);
+    lv_obj_align(cap_tog[4].sub, LV_ALIGN_CENTER, 0, 16);
 }
 
 static void toggle_cb(lv_event_t *e)
@@ -750,13 +803,20 @@ static void sensors_readout(void)
 {
     if (page != P_SENSORS) return;
     int pct = ui_platform_battery();
-    if (pct < 0) lv_label_set_text(sens_batt, "POWER CELL   --  (USB)");
-    else lv_label_set_text_fmt(sens_batt, "POWER CELL   %d%%", pct);
+    if (pct < 0) lv_label_set_text(sens_batt, "PWR  USB");
+    else lv_label_set_text_fmt(sens_batt, "PWR  %d%%", pct);
     float x = 0, y = 0;
     if (ui_platform_tilt(&x, &y))
-        lv_label_set_text_fmt(sens_tilt, "TILT   X %+d   Y %+d", (int)x, (int)y);
+        lv_label_set_text_fmt(sens_tilt, "TILT %+d %+d", (int)x, (int)y);
     else
-        lv_label_set_text(sens_tilt, "TILT   --");
+        lv_label_set_text(sens_tilt, "TILT  --");
+    float tc;
+    if (ui_platform_temp(&tc)) {
+        float v = S.temp_f ? tc * 9.0f / 5.0f + 32.0f : tc;
+        lv_label_set_text_fmt(sens_temp, "TEMP %d %s", (int)(v + 0.5f), S.temp_f ? "F" : "C");
+    } else {
+        lv_label_set_text(sens_temp, "TEMP  --");
+    }
 }
 
 static void open_settings(int p)
@@ -876,13 +936,14 @@ static void build_settings(void)
     for (int i = 0; i < 20; i++) rs_seg[i] = box(grp_reset, 46 + i * 14, 138, 10, 22, COL_DIM);
 
     /* sensors page */
+    /* layout: top row TEMP | C/F | readings panel; row A BATTERY | TILT GRID | QUIET ONLY */
     grp_sens = group(scr_settings);
-    sens_batt = label(grp_sens, "", &lv_font_montserrat_16, COL_TEXT);
-    lv_obj_set_pos(sens_batt, 40, 76);
-    sens_tilt = label(grp_sens, "", &lv_font_montserrat_16, COL_TEXT);
-    lv_obj_set_pos(sens_tilt, 40, 104);
-    lv_obj_t *sn = label(grp_sens, "QUIET ONLY: tilt lines hide while you talk", &lv_font_montserrat_14, COL_LABEL);
-    lv_obj_set_pos(sn, 40, 146);
+    sens_batt = label(grp_sens, "", &lv_font_montserrat_14, COL_TEXT);
+    lv_obj_set_pos(sens_batt, 258, 106);
+    sens_tilt = label(grp_sens, "", &lv_font_montserrat_14, COL_TEXT);
+    lv_obj_set_pos(sens_tilt, 258, 132);
+    sens_temp = label(grp_sens, "", &lv_font_montserrat_14, COL_TEXT);
+    lv_obj_set_pos(sens_temp, 258, 158);
 
     /* display-off page */
     grp_disp = group(scr_settings);
@@ -898,10 +959,12 @@ static void build_settings(void)
     cap_plus = make_cap(scr_settings, 192, 204, 160, 104, LV_SYMBOL_PLUS, "HOLD TO REPEAT", COL_BLUE, true,
                         step_cb, LV_EVENT_PRESSED, (void *)(intptr_t)1);
     cap_wide = make_cap(scr_settings, 16, 204, 336, 104, "EDIT", "", COL_AMBER, false, wide_cb, LV_EVENT_ALL, NULL);
-    static const char *TOG[3] = {"BATTERY", "TILT GRID", "QUIET\nONLY"};   /* too wide -> two lines */
-    for (int i = 0; i < 3; i++) {
-        cap_tog[i] = make_cap(scr_settings, 16 + i * 116, 204, 104, 104, TOG[i], "ON", COL_GREEN, false,
-                              toggle_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+    static const char *TOG[NTOG] = {"BATTERY", "TILT GRID", "QUIET\nONLY", "TEMP", "F"};
+    static const int TX[NTOG] = {16, 132, 248, 16, 132}, TY[NTOG] = {204, 204, 204, 88, 88};
+    for (int i = 0; i < NTOG; i++) {
+        cap_tog[i] = make_cap(scr_settings, TX[i], TY[i], 104, 104, TOG[i], "ON", i == 4 ? COL_AMBER : COL_GREEN,
+                              false, toggle_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        if (i == 4) lv_obj_set_style_text_font(cap_tog[i].lbl, &lv_font_montserrat_28, 0);
         lv_point_t sz;                                                 /* name: 18 px, 16 px if wide */
         lv_txt_get_size(&sz, TOG[i], &lv_font_montserrat_18, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
         if (sz.x > 76) lv_obj_set_style_text_font(cap_tog[i].lbl, &lv_font_montserrat_16, 0);
@@ -1150,6 +1213,7 @@ static void lamp_cb(lv_timer_t *t)
             }
         }
         if (--c->tick_next <= 0) { tick_change(c); c->tick_next = 15 + rnd() % 16; }  /* 1.5-3 s */
+        if (tick % 5 == 0) temp_update(c);
     }
     was_keyed = keyed;
 
@@ -1188,7 +1252,7 @@ void ui_init(void)
     skin_set_value = mk_skin(skin_settings_value_px);
     skin_set_wide = mk_skin(skin_settings_wide_px);
     skin_callsign = mk_skin(skin_callsign_px);
-    skin_set_three = mk_skin(skin_settings_three_px);
+    skin_set_sensors = mk_skin(skin_settings_sensors_px);
 
     f_aureb13 = lv_tiny_ttf_create_data(aurebesh_ttf_start, aurebesh_ttf_len, 14);
     f_aureb12 = lv_tiny_ttf_create_data(aurebesh_ttf_start, aurebesh_ttf_len, 13);
@@ -1198,6 +1262,7 @@ void ui_init(void)
     f_aureng42 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 42);
     f_aureng34 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 34);
     f_aureng22 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 22);
+    f_aureng18 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 18);
 
     build_main();
     build_lock();

@@ -345,6 +345,19 @@ class Ticker:
         self.lines[i] = self.rnd.choice([w for w in TICK_WORDS if w not in self.lines])
 
 
+def secret_temp(sc, cy, value, unit, col):
+    """'TEMP' + unit in Aurebesh, the number in the callsign's TK-style digits, centred on x 184"""
+    fw, fn = font(AUREB, 13), font(AURENG, 18)
+    track, stretch = 0.22, 1.15
+    w_word = (sum(fw.getlength(ch) for ch in "TEMP") + track * fw.size * 3) * stretch / S
+    w_num = fn.getlength(str(value)) / S
+    w_unit = fw.getlength(unit) * stretch / S
+    x = TICK_X - (w_word + 6 + w_num + 4 + w_unit) / 2
+    sc.text(x, cy, "TEMP", fw, col, "lm")
+    sc.text(x + w_word + 6, cy, str(value), fn, col, "lm")
+    sc.text(x + w_word + 6 + w_num + 4, cy, unit, fw, col, "lm")
+
+
 def ticker(sc, x, y, tk, f, col, rows=None, anchor="lm"):
     """rows: y centres to sit each line on (aligned to the lamp rows); else 22 px pitch from y."""
     for i, w in enumerate(tk.lines):
@@ -371,8 +384,11 @@ def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=N
     seg_meter(sc, 306, 178, level)
     battery_bar(sc, 78)
     lamps(sc, CLUSTER_X, CLUSTER_Y, lamp_states or ["blue", "grey", "orange", "grey", "red", "blue", "orange"], lamp_opas)
-    ticker(sc, TICK_X, 0, tk or Ticker(4, 1), font(AUREB, 13), mix(AMBER, "#000000", 0.35),
-           [CLUSTER_Y + r for r in LAMP_ROWS], "mm")
+    tk = tk or Ticker(4, 1)
+    tick_col = mix(AMBER, "#000000", 0.35)
+    secret_temp(sc, CLUSTER_Y + LAMP_ROWS[0], 88, "F", tick_col)    # line 1 = secret temp readout
+    rest = Ticker(3, 0); rest.lines = tk.lines[1:]
+    ticker(sc, TICK_X, 0, rest, font(AUREB, 13), tick_col, [CLUSTER_Y + r for r in LAMP_ROWS[1:]], "mm")
     scomp(sc, SCOMP_CX, SCOMP_CY, 46, t / 8, rot)
     guarded_toggle(sc, 16, 320, 104, 114, cover_open)
     key(sc, 132, 320, 104, 114, "SYS", BLUE, sub="SETTINGS")
