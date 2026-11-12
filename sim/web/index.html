@@ -130,7 +130,7 @@ footer code { font: 12px var(--mono); color: var(--ink); }
         </div>
         <input type="file" id="fileIn" accept="audio/*" hidden>
         <label class="chk"><input type="checkbox" id="monitor" checked> Play the effect through my speakers</label>
-        <p class="note" id="srcNote">Demo voice is a synthetic buzz with pauses, so you can watch the VOX key up and down. Use headphones with the microphone.</p>
+        <p class="note" id="srcNote">Demo voice is a synthetic buzz with pauses, so you can watch the VOX key up and down. It starts on its own, silently, so the scope and meters always move; click it to hear it. Use headphones with the microphone.</p>
         <p class="status" id="status" role="status"></p>
       </section>
 
@@ -281,8 +281,9 @@ function sensors() {
 }
 for (const id of ['sTx', 'sTy']) $(id).addEventListener('input', () => { $('sWander').checked = false; });
 
-function frame() {
+function frame(now) {
   sensors();
+  silentDemo(now);
   sim.loop();
   const d = sim.dirty();
   if (d !== lastDirty) { img.data.set(sim.pixels()); ctx2d.putImageData(img, 0, 0); lastDirty = d; }
@@ -378,7 +379,7 @@ async function ensureAudio() {
 
 /* synthetic voice: glottal buzz through two vowel formants, syllables, pauses */
 const VOWELS = [[730, 1090], [270, 2290], [530, 1840], [570, 840], [300, 870]];
-let dph = 0, dt = 0, f1s = [0, 0], f2s = [0, 0], vow = VOWELS[0];
+let dph = 0, dt = 0, f1s = [0, 0], f2s = [0, 0], vow = VOWELS[0], sylGain = 1, phrase = 1, lastCyc = 0;
 function reson(st, f, bw, x) {
   const r = Math.exp(-Math.PI * bw / dspRate), c = 2 * r * Math.cos(2 * Math.PI * f / dspRate);
   const y = x + c * st[0] - r * r * st[1]; st[1] = st[0]; st[0] = y; return y * (1 - r);
@@ -389,16 +390,32 @@ function demoBlock(n) {
     dt += 1 / dspRate;
     const cyc = dt % 3.2;                         // 2.2 s talking, 1 s quiet
     const syl = (cyc * 4.3) % 1;
-    if (syl < 1 / dspRate * 4.3 * 1.5) vow = VOWELS[(Math.random() * VOWELS.length) | 0];
-    const env = cyc < 2.2 ? Math.sin(Math.PI * syl) ** 0.6 : 0;
+    if (syl < 1 / dspRate * 4.3 * 1.5) {             // new syllable: new vowel, new loudness
+      vow = VOWELS[(Math.random() * VOWELS.length) | 0];
+      sylGain = 0.12 + 0.88 * Math.random() ** 0.7;
+    }
+    if (cyc < lastCyc) phrase = 0.35 + 0.65 * Math.random();   // each phrase louder or softer
+    lastCyc = cyc;
+    const env = cyc < 2.2 ? Math.sin(Math.PI * syl) ** 0.6 * sylGain * phrase : 0;
     const pitch = 118 + 14 * Math.sin(dt * 2.1) - 20 * (cyc / 2.2);
     dph += pitch / dspRate;
     const pulse = (dph % 1) < 0.08 ? 1 : -0.087;  // narrow glottal pulse
     const x = pulse * env;
     const v = reson(f1s, vow[0], 90, x) * 1.0 + reson(f2s, vow[1], 120, x) * 0.6;
-    b[i] = Math.max(-1, Math.min(1, v * 9 + (Math.random() * 2 - 1) * 0.002));
+    b[i] = Math.max(-1, Math.min(1, v * 2.5 + (Math.random() * 2 - 1) * 0.002));
   }
   return b;
+}
+
+/* Silent demo: while the demo voice is selected but no audio is running (the page just
+   opened, or the browser / host blocks sound), the frame loop feeds the demo voice straight
+   into the DSP in real time, so the scope and meters move without any sound. */
+let demoT = 0;
+function silentDemo(now) {
+  if ((source !== 'demo' && source !== 'off') || (ac && ac.state === 'running')) { demoT = now; return; }
+  let n = Math.min(Math.round((now - (demoT || now)) * dspRate / 1000), dspRate / 4);
+  demoT = now;                                     // Off feeds silence so the gate closes
+  while (n > 0) { const k = Math.min(n, 256); sim.audioProcess(source === 'demo' ? demoBlock(k) : new Float32Array(k)); n -= k; }
 }
 
 function setSource(s) {
@@ -409,7 +426,13 @@ function setSource(s) {
 function disconnectSrc() { try { srcNode?.disconnect(); srcNode?.stop?.(); } catch {} srcNode = null; }
 
 $('srcOff').onclick = () => { disconnectSrc(); setSource('off'); status(''); };
-$('srcDemo').onclick = async () => { await ensureAudio(); await ac.resume(); disconnectSrc(); setSource('demo'); status('Demo voice playing.'); };
+$('srcDemo').onclick = async () => {
+  disconnectSrc(); setSource('demo');
+  try { await ensureAudio(); await ac.resume(); } catch {}
+  status(ac && ac.state === 'running' ? 'Demo voice playing.' : 'Demo voice running silently (this browser is blocking sound).');
+};
+setSource('demo');                                   // start with the demo voice moving the meters
+status('Demo voice running silently. Click Demo voice to hear it, or Off to stop.');
 $('srcFile').onclick = () => $('fileIn').click();
 $('fileIn').onchange = async (e) => {
   const f = e.target.files[0]; if (!f) return;
