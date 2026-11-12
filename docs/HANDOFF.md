@@ -118,6 +118,12 @@ sideload - Disney IP risk on paid Star Wars art).
 
 ---
 
+## Product notes
+
+`docs/PRODUCT-NOTES.md` - to-dos for the shipping product: signed + encrypted skin packs on
+the SD card (`.vskin`), device-bound paid skins, Secure Boot / Flash Encryption checklist,
+16 MB flash + skins partition.
+
 ## New Imperial UI (designed, running in the sim, not yet on the device)
 
 Design spec `docs/UI-DESIGN.md`; mock-ups `design/mockups/`; skin (background layer)
