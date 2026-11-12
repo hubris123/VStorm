@@ -234,19 +234,20 @@ def lamps(sc, x, y, states, opas=None):
             sc.g.rectangle(box, fill=hexrgb(col, int(90 * a)))
 
 
-def scomp(sc, cx, cy, r, t=0.0):
-    """Scomp link: socket plate + 3-segment outer ring, inner rotor, fast spinning tip."""
+def scomp(sc, cx, cy, r, t=0.0, rot=None):
+    """Scomp link: socket plate + 3-segment outer ring, inner rotor, fast spinning tip.
+    rot = (outer, inner, tip) angles in degrees; each ring wanders on its own."""
     sc.d.ellipse(sc.b(cx - r - 6, cy - r - 6, cx + r + 6, cy + r + 6), outline="#22272B", width=2 * S)
     for k in range(24):                                          # socket ticks
         a = math.radians(k * 15)
         sc.line([(cx + (r + 1) * math.cos(a), cy + (r + 1) * math.sin(a)),
                  (cx + (r + 5) * math.cos(a), cy + (r + 5) * math.sin(a))], "#2E3438", 1)
-    o = 37 * t
+    o, inner, tip = rot or (37 * t, -73 * t + 90, 160 * t)
     for i in range(3):
         sc.arc(cx, cy, r - 4, o + i * 120, o + i * 120 + 80, "#8A9095", 8)
-    sc.arc(cx, cy, r - 18, -73 * t + 90, -73 * t + 90 + 250, "#5C6166", 7)
-    sc.arc(cx, cy, r - 30, 160 * t, 160 * t + 60, BLUE, 4)
-    sc.arc(cx, cy, r - 30, 160 * t + 180, 160 * t + 240, BLUE, 4)
+    sc.arc(cx, cy, r - 18, inner, inner + 250, "#5C6166", 7)
+    sc.arc(cx, cy, r - 30, tip, tip + 60, BLUE, 4)
+    sc.arc(cx, cy, r - 30, tip + 180, tip + 240, BLUE, 4)
     sc.d.ellipse(sc.b(cx - 7, cy - 7, cx + 7, cy + 7), fill="#B9BEC2")
     sc.d.ellipse(sc.b(cx - 3, cy - 3, cx + 3, cy + 3), fill="#0C0F12")
 
@@ -319,7 +320,7 @@ def ticker(sc, x, y, tk, f, col):
 
 
 # ---------------- screens ----------------
-def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=None, level=62, tk=None):
+def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=None, level=62, tk=None, rot=None):
     sc = Screen()
     sc.text(46, 30, "TK-421", font(AURENG, 26), RED, "lm")
     small_lamp(sc, 252, 22, "TX", level > 22)
@@ -328,7 +329,7 @@ def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=N
     seg_meter(sc, 306, 178, level)
     lamps(sc, 24, 196, lamp_states or ["blue", "grey", "orange", "grey", "red", "blue", "orange"], lamp_opas)
     ticker(sc, 118, 198, tk or Ticker(4, 1), font(AUREB, 13), mix(AMBER, "#000000", 0.35))
-    scomp(sc, 290, 244, 46, t / 8)
+    scomp(sc, 290, 244, 46, t / 8, rot)
     guarded_toggle(sc, 16, 304, 104, 114, cover_open)
     key(sc, 132, 304, 104, 114, "SYS", BLUE, sub="SETTINGS")
     if live:
@@ -482,14 +483,23 @@ def main():
     states = ["blue", "grey", "orange", "grey", "red", "blue", "orange"]
     frames = []
     tk = Ticker(4, 1)
-    for f in range(48):
+    # Scomp link rings: each has its own speed (deg/frame) and randomly reverses or changes
+    # pace, like fake_knob_timer_cb in firmware3. Forced changes here so the short loop shows it.
+    ang = [0.0, 90.0, 0.0]
+    spd = [4.0, -8.0, 18.0]
+    changes = {18: (0, -6.0), 30: (2, -14.0), 44: (1, 5.0), 58: (0, 3.0), 66: (2, 20.0)}
+    for f in range(72):
+        if f in changes:
+            ring, v = changes[f]
+            spd[ring] = v
+        ang = [a + v for a, v in zip(ang, spd)]
         if f % 14 == 13:          # one readout line changes about every 1.5 s
             tk.step()
         if f % 12 == 11:
             j = rnd.randrange(7)
             states[j] = rnd.choice([c for c in LAMP if c != states[j]])
         opas = [(0.45 + 0.55 * abs(math.sin((f + i * 5) / 7.6))) if s == "red" else 1 for i, s in enumerate(states)]
-        im = main_screen(live=f >= 24, t=f, lamp_states=list(states), lamp_opas=opas,
+        im = main_screen(live=f >= 36, t=f, rot=tuple(ang), lamp_states=list(states), lamp_opas=opas,
                          level=int(40 + 35 * abs(math.sin(f / 5))), tk=tk).finish()
         frames.append(im.resize((im.width // 2, im.height // 2), Image.LANCZOS))
     frames[0].save(os.path.join(out, "main_alive.gif"), save_all=True, append_images=frames[1:],
