@@ -172,14 +172,14 @@ dropping instantly, which reads as a natural voice trace.
 
 Trigger is the **VOX gate** (open while speaking + ~350 ms hang), not the raw level, so it follows
 speech, not room noise, and lines up with the key-up / key-down clicks. Changes **ramp**:
-spin up in ~0.5 s, wind down over 1–2 s. Nothing flashes per syllable (the meter and scope
+ease up over ~1.5 s, wind down over 2–3 s (kept calm: talking should not make the console busy). Nothing flashes per syllable (the meter and scope
 already show the raw voice).
 
 | Element | Idle | Keyed while MUTED | Keyed while LIVE (transmitting) |
 |---|---|---|---|
 | Scope frame | grey | **amber** | **red** (with a soft glow) |
-| Scomp rings | slow drift, random reversals | ~1.4× speed | ~2.5× speed, speed loosely follows smoothed level; reversals continue |
-| Lamp cluster | one change every 20–40 s | unchanged, one lamp flips at key-up | a change every 1–3 s, burst of 2–3 lamps at key-up |
+| Scomp rings | slow drift, random reversals | ~1.15× speed | ~1.5× speed; reversals continue |
+| Lamp cluster | one change every 20–40 s | unchanged | a change every 6–12 s, one lamp flips at key-up |
 | TX lamp (real) | off | off | steady red |
 | Readout text | one line every few s | — | new line at each key-up ("logging the transmission") |
 

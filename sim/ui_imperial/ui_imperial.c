@@ -969,7 +969,7 @@ static void tilt_update(console_t *c, bool keyed)
 /* ---- lamps ---- */
 static uint16_t lamp_delay(bool busy)
 {
-    return busy ? 10 + rnd() % 21          /* 1-3 s while transmitting */
+    return busy ? 60 + rnd() % 61          /* 6-12 s while transmitting (calm, not flashing) */
                 : 200 + rnd() % 201;       /* 20-40 s idle */
 }
 
@@ -2810,8 +2810,8 @@ static void fast_cb(lv_timer_t *t)
 static void ring_cb(lv_timer_t *t)
 {
     bool keyed = audio_is_keyed(), muted = audio_is_muted();
-    float target = keyed ? (muted ? 1.4f : 2.6f) : 1.0f;
-    boost += (target - boost) * (target > boost ? 0.30f : 0.08f);   /* spin up fast, wind down slow */
+    float target = keyed ? (muted ? 1.15f : 1.5f) : 1.0f;
+    boost += (target - boost) * (target > boost ? 0.08f : 0.04f);   /* ease up ~1.5 s, down ~2-3 s */
     console_t *c = active_console();
     for (int i = 0; c && i < c->np; i++) {
         part_t *p = &c->part[i];
@@ -2846,12 +2846,12 @@ static void lamp_cb(lv_timer_t *t)
     console_t *c = active_console();
     if (c) {
         if (keyed && !was_keyed) {                                      /* key-up */
-            int n = muted ? 1 : 3;
+            int n = muted ? 0 : 1;
             for (int k = 0; k < n && c->nlamps; k++) lamp_flip(c, rnd() % c->nlamps);
             if (!muted) tick_change(c);
         }
         for (int i = 0; i < c->nlamps; i++) {
-            if (busy && c->lamp_next[i] > 30) c->lamp_next[i] = lamp_delay(true);
+            if (busy && c->lamp_next[i] > 120) c->lamp_next[i] = lamp_delay(true);
             if (--c->lamp_next[i] == 0) { lamp_flip(c, i); c->lamp_next[i] = lamp_delay(busy); }
             if (c->lamp_st[i] == 2) {                                   /* slow red pulse, ~6 s */
                 int ph = (tick + i * 8) % 60, tri = ph < 30 ? ph : 60 - ph;
@@ -2861,7 +2861,7 @@ static void lamp_cb(lv_timer_t *t)
             }
         }
         for (int i = 0; i < c->np; i++)                                 /* hex readings drift */
-            if (c->part[i].d->kind == PK_HEX && rnd() % (busy ? 3 : 12) == 0) hex_tick(c, &c->part[i]);
+            if (c->part[i].d->kind == PK_HEX && rnd() % (busy ? 8 : 12) == 0) hex_tick(c, &c->part[i]);
         if (--c->tick_next <= 0) { tick_change(c); c->tick_next = 15 + rnd() % 16; }  /* 1.5-3 s */
         if (tick % 5 == 0) temp_update(c);
     }
