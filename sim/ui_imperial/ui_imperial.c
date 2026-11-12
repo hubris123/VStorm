@@ -354,7 +354,8 @@ typedef struct {
     lv_obj_t *o[MAX_OBJ];                 /* segments, bar lines, labels, arcs, rotor lines */
     int no;
     lv_obj_t *chart;
-    lv_chart_series_t *ser;
+    lv_chart_series_t *ser, *ser_lo;      /* trace while the gate is open / grey while it is shut */
+    bool last_keyed;
     lv_obj_t *fr[4];                      /* keyed frame overlay (amber muted, red transmitting) */
     int nfr;
     lv_point_t fr_pts[4][9];
@@ -413,9 +414,16 @@ static console_t con_main, con_lock;
 #define CP(hex) lv_color_hex(hex)
 
 /* voice level history (newest = hist_at(0)) */
-static uint8_t hist[HIST];
+static uint8_t hist[HIST], hist_g[HIST];       /* level, and whether the VOX gate was open */
 static uint32_t hist_n, fast_ticks;
-static void hist_push(int v) { hist[hist_n++ % HIST] = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v); }
+static void hist_push(int v, bool gate)
+{
+    hist_g[hist_n % HIST] = gate;
+    hist[hist_n++ % HIST] = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
+}
+static bool hist_gate_at(int k) { return hist_g[(hist_n - 1 - (uint32_t)k) % HIST]; }
+/* voice below the VOX cut-off (gate shut): drawn grey, so you can see it isn't going out */
+#define COL_BELOW_GATE lv_color_hex(0x66707A)
 static int hist_at(int k) { return hist[(hist_n - 1 - (uint32_t)k) % HIST]; }
 
 /* Callsign in the top bar: as big as fits. 42 px normally; long callsigns step down
@@ -527,6 +535,7 @@ static void make_overlay(console_t *c, part_t *p, int kind, int bx0, int by0, in
     for (int i = 0; i < p->nfr; i++) lv_obj_add_flag(p->fr[i], LV_OBJ_FLAG_HIDDEN);
 }
 
+static lv_chart_series_t *s_last_lo;       /* the grey series of the chart just made */
 static lv_obj_t *make_chart(console_t *c, int x, int y, int w, int h, int pad, int npts, int ymax, lv_color_t col,
                             lv_chart_series_t **ser)
 {
@@ -545,8 +554,13 @@ static lv_obj_t *make_chart(console_t *c, int x, int y, int w, int h, int pad, i
     lv_obj_set_style_size(chrt, 0, LV_PART_INDICATOR);
     lv_obj_set_style_line_width(chrt, 2, LV_PART_ITEMS);
     lv_obj_clear_flag(chrt, LV_OBJ_FLAG_CLICKABLE);
+    lv_chart_series_t *lo = lv_chart_add_series(chrt, COL_BELOW_GATE, LV_CHART_AXIS_PRIMARY_Y);
     *ser = lv_chart_add_series(chrt, col, LV_CHART_AXIS_PRIMARY_Y);
-    for (int i = 0; i < npts; i++) lv_chart_set_next_value(chrt, *ser, 3);
+    for (int i = 0; i < npts; i++) {
+        lv_chart_set_next_value(chrt, lo, 3);
+        lv_chart_set_next_value(chrt, *ser, LV_CHART_POINT_NONE);
+    }
+    s_last_lo = lo;
     return chrt;
 }
 
@@ -558,6 +572,7 @@ static void make_scope(console_t *c, part_t *p)
         int x = g[0], y = g[1], r = g[2];
         tilt_area(c, x - r * 3 / 4, y - r * 3 / 4, x + r * 3 / 4, y + r * 3 / 4);
         p->chart = make_chart(c, x - r * 8 / 10, y - r * 55 / 100, r * 16 / 10, r * 90 / 100, 0, 50, 100, c->trace, &p->ser);
+        p->ser_lo = s_last_lo;
         p->fr[0] = ring(c->scr, x, y, r + 1, 3, 360, COL_RED);
         lv_obj_add_flag(p->fr[0], LV_OBJ_FLAG_HIDDEN);
         p->nfr = 1;
@@ -565,6 +580,7 @@ static void make_scope(console_t *c, part_t *p)
     }
     tilt_area(c, g[0] + 3, g[1] + 3, g[2] - 3, g[3] - 3);
     p->chart = make_chart(c, g[0] + 1, g[1] + 1, g[2] - g[0] - 1, g[3] - g[1] - 1, 4, 60, 100, c->trace, &p->ser);
+    p->ser_lo = s_last_lo;
     make_overlay(c, p, p->d->style, g[0], g[1], g[2], g[3]);
 }
 
@@ -584,7 +600,7 @@ static void make_vscope(console_t *c, part_t *p)
     const int16_t *g = p->d->g;
     tilt_area(c, g[0] + 3, g[1] + 3, g[2] - 3, g[3] - 3);
     for (int i = 0; i < 60; i++) p->pts[i] = (lv_point_t){g[0] + 6, g[1] + 3 + (g[3] - g[1] - 6) * i / 59};
-    add_obj(p, pline(c->scr, p->pts, 60, c->trace, 2));
+    add_obj(p, pline(c->scr, p->pts, 60, COL_BELOW_GATE, 2));   /* grey until the gate opens */
     make_overlay(c, p, p->d->style, g[0], g[1], g[2], g[3]);
 }
 
@@ -613,6 +629,7 @@ static void make_target(console_t *c, part_t *p)
     tilt_area(c, g[0] + 3, g[1] + 3, g[2] - 3, g[3] - 3);
     p->chart = make_chart(c, g[0] + 3, g[1] + 6, g[2] - g[0] - 6, g[3] - g[1] - 12, 0, 60, 166,
                           lv_color_mix(c->trace, lv_color_black(), 178), &p->ser);
+    p->ser_lo = s_last_lo;
     for (int i = 0; i < 4; i++) add_obj(p, pline(c->scr, &p->pts[i * 3], 3, CP(c->sk->accent), 3));
     p->shown = -1;
     target_brackets(p);
@@ -762,11 +779,12 @@ static void bars_update(console_t *c, part_t *p)
     bars_fill(p, 0, 0, W, H, bg);
     for (int i = 0; i < n; i++) {
         int v = hist_at((n - 1 - i) * 3);
+        bool gate = hist_gate_at((n - 1 - i) * 3);
         int lit = nseg * v / 100;
         int bx0 = (int)(4 + i * bw + 1), bx1 = (int)(4 + (i + 1) * bw - 1);
         for (int k = 0; k < nseg; k++) {
             int yb = H - 4 - k * BAR_SEG;
-            lv_color_t col = k < lit ? (k > nseg * 78 / 100 ? hi : lo) : off;
+            lv_color_t col = k < lit ? (!gate ? COL_BELOW_GATE : k > nseg * 78 / 100 ? hi : lo) : off;
             bars_fill(p, bx0, yb - BAR_SEG + 1, bx1, yb, col);
         }
     }
@@ -1424,6 +1442,16 @@ static void console_free(console_t *c)
         if (c->part[i].cbuf) { lv_mem_free(c->part[i].cbuf); c->part[i].cbuf = NULL; }
 }
 
+/* next trace point: coloured while the gate is open, grey while it is shut; at a change the
+ * point goes on both, so the line stays joined */
+static void chart_push(part_t *p, int v, bool keyed)
+{
+    bool changed = keyed != p->last_keyed;
+    lv_chart_set_next_value(p->chart, p->ser, keyed || changed ? v : LV_CHART_POINT_NONE);
+    lv_chart_set_next_value(p->chart, p->ser_lo, !keyed || changed ? v : LV_CHART_POINT_NONE);
+    p->last_keyed = keyed;
+}
+
 /* per-frame voice updates of every part (40 ms) */
 static void console_voice(console_t *c, int lvl, bool keyed, bool muted)
 {
@@ -1431,13 +1459,19 @@ static void console_voice(console_t *c, int lvl, bool keyed, bool muted)
     for (int i = 0; i < c->np; i++) {
         part_t *p = &c->part[i];
         switch (p->d->kind) {
-        case PK_SCOPE: case PK_ROUND: lv_chart_set_next_value(p->chart, p->ser, lvl < 2 ? 2 : lvl); break;
+        case PK_SCOPE: case PK_ROUND: chart_push(p, lvl < 2 ? 2 : lvl, keyed); break;
         case PK_TARGET:
-            lv_chart_set_next_value(p->chart, p->ser, lvl < 2 ? 2 : lvl);
+            chart_push(p, lvl < 2 ? 2 : lvl, keyed);
             p->s += ((keyed ? 100 : 0) - p->s) * 0.2f;    /* brackets lock on while the gate is open */
             target_brackets(p);
             break;
-        case PK_VSCOPE: vscope_update(p); break;
+        case PK_VSCOPE:
+            if (keyed != p->last_keyed) {
+                lv_obj_set_style_line_color(p->o[0], keyed ? c->trace : COL_BELOW_GATE, 0);
+                p->last_keyed = keyed;
+            }
+            vscope_update(p);
+            break;
         case PK_WATERFALL: if (fast_ticks % 2 == 0) waterfall_update(p); break;
         case PK_METER: meter_update(c, p, lvl); break;
         case PK_BARS: if (p->canvas && fast_ticks % 3 == 0) bars_update(c, p); break;
@@ -2805,7 +2839,7 @@ static void fast_cb(lv_timer_t *t)
     if (u > knee && knee < 0.999f) u = knee + (1.0f - knee) * tanhf((u - knee) / (1.0f - knee));
     int lvl = (int)(u * 100.0f + 0.5f);
     bool keyed = audio_is_keyed(), muted = audio_is_muted();
-    hist_push(lvl);
+    hist_push(lvl, keyed);
     fast_ticks++;
     console_voice(c, lvl, keyed, muted);
     lv_obj_set_style_bg_color(c->tx, keyed && !muted ? CP(c->sk->accent) : COL_PANEL, 0);

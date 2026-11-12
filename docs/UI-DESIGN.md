@@ -178,6 +178,7 @@ already show the raw voice).
 | Element | Idle | Keyed while MUTED | Keyed while LIVE (transmitting) |
 |---|---|---|---|
 | Scope frame | grey | **amber** | **red** (with a soft glow) |
+| Voice trace (scopes, tall scope, bar graph) | **grey** while the gate is shut: the voice is heard but is below the VOX cut-off, so it isn't going out | trace colour | trace colour |
 | Scomp rings | slow drift, random reversals | ~1.15× speed | ~1.5× speed; reversals continue |
 | Lamp cluster | one change every 20–40 s | unchanged | a change every 6–12 s, one lamp flips at key-up |
 | TX lamp (real) | off | off | steady red |
