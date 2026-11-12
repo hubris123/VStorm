@@ -1,0 +1,378 @@
+<title>VStorm Virtual Console</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a workbench — the device sits on a dark mat on the left, the bench controls
+   (voice source, board size, readouts) on the right; stacks to one column on phones.
+   Single deliberate dark look: an Imperial prop on a lit bench. */
+:root {
+  --mat: #0d0f11;          /* bench mat */
+  --panel: #15191d;        /* control panels */
+  --line: #2a3138;         /* hairlines */
+  --ink: #d9dde0;          /* text */
+  --mute: #8b949c;         /* secondary text */
+  --red: #c4262e;          /* Imperial red — the one loud colour */
+  --blue: #459fc2;         /* console blue (firmware FAKE_BLUE) */
+  --amber: #eeb52a;        /* console orange (firmware popups) */
+  --pcb: #13241c;          /* board solder mask */
+  --display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { background: var(--mat); color: var(--ink); }
+body { font: 15px/1.5 var(--body); }
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+  display: grid; gap: 28px;
+}
+header { display: grid; gap: 6px; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--red); }
+h1 { font: 600 clamp(28px, 4vw, 40px)/1.1 var(--display); margin: 0; letter-spacing: .02em; text-wrap: balance; }
+.lede { color: var(--mute); max-width: 64ch; margin: 0; }
+
+.bench { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 860px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+
+/* the board */
+.board {
+  background: var(--pcb); border: 1px solid #22402f; border-radius: 14px;
+  padding: 22px 22px 16px; display: grid; gap: 14px; justify-items: center;
+  box-shadow: 0 30px 60px -30px #000, inset 0 0 0 6px #0f1d16;
+}
+.board-top { width: 100%; display: flex; justify-content: space-between; font: 500 11px/1 var(--mono); color: #6f9a80; letter-spacing: .08em; }
+.screen-frame { background: #050606; padding: 10px; border-radius: 8px; border: 1px solid #000; max-width: 100%; }
+canvas#screen { display: block; image-rendering: pixelated; max-width: 100%; height: auto; touch-action: none; cursor: crosshair; transition: filter .2s; }
+.board-bottom { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.btn-boot {
+  display: flex; align-items: center; gap: 10px; background: none; border: 0; color: #b9cfc1;
+  font: 500 12px/1.2 var(--mono); letter-spacing: .06em; cursor: pointer; padding: 4px; text-align: left;
+}
+.btn-boot .cap {
+  width: 34px; height: 34px; border-radius: 6px; background: #c8ccd0; position: relative;
+  box-shadow: inset 0 -3px 0 #8d9297, 0 2px 0 #050806;
+}
+.btn-boot .cap::after { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: #2b2f33; }
+.btn-boot.down .cap { transform: translateY(2px); box-shadow: inset 0 -1px 0 #8d9297; }
+.btn-boot small { display: block; color: #6f9a80; letter-spacing: 0; }
+.hold { flex: 1; min-width: 120px; max-width: 220px; height: 4px; background: #0b1510; border-radius: 2px; overflow: hidden; }
+.hold i { display: block; height: 100%; width: 0; background: var(--amber); }
+.hold i.reset { background: var(--red); }
+.silk { font: 500 11px/1 var(--mono); color: #6f9a80; }
+
+/* controls */
+.controls { display: grid; gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+.card h2 { font: 600 13px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; margin: 0; color: var(--ink); }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button, .act {
+  font: 500 13px/1 var(--body); color: var(--ink); background: #1d2328; border: 1px solid var(--line);
+  border-radius: 6px; padding: 9px 12px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { border-color: var(--blue); color: #fff; background: #17303c; }
+.seg button:disabled { opacity: .45; cursor: not-allowed; }
+.act.primary { background: var(--red); border-color: var(--red); color: #fff; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.note { color: var(--mute); font-size: 13px; margin: 0; }
+select { font: 500 13px var(--body); color: var(--ink); background: #1d2328; border: 1px solid var(--line); border-radius: 6px; padding: 8px; max-width: 100%; }
+label.chk { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.readouts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ro { background: #0f1316; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; display: grid; gap: 2px; }
+.ro span { font: 500 10px/1 var(--mono); letter-spacing: .1em; color: var(--mute); text-transform: uppercase; }
+.ro b { font: 500 15px/1.3 var(--mono); font-variant-numeric: tabular-nums; }
+.lamp { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #2a2f33; margin-right: 6px; vertical-align: 1px; }
+.lamp.on { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.status { font: 400 13px var(--mono); color: var(--amber); min-height: 1.2em; margin: 0; }
+footer { color: var(--mute); font-size: 13px; max-width: 70ch; }
+footer code { font: 12px var(--mono); color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { canvas#screen { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">VStorm · firmware running in your browser</div>
+    <h1>VStorm Virtual Console</h1>
+    <p class="lede">The real touchscreen UI and stormtrooper voice effect from the firmware, compiled to WebAssembly. Tap the screen like the device. Settings are kept in this browser.</p>
+  </header>
+
+  <div class="bench">
+    <section class="board" aria-label="Simulated board">
+      <div class="board-top"><span id="boardName">ESP32-S3-TOUCH-LCD-1.47</span><span id="boardRes">320 × 172</span></div>
+      <div class="screen-frame"><canvas id="screen" width="320" height="172" aria-label="Device touchscreen"></canvas></div>
+      <div class="board-bottom">
+        <button class="btn-boot" id="boot" type="button" aria-describedby="bootHelp">
+          <span class="cap" aria-hidden="true"></span>
+          <span>BOOT<small id="bootHelp">tap: mute · hold 3 s: lock · 10 s: reset</small></span>
+        </button>
+        <div class="hold" aria-hidden="true"><i id="holdBar"></i></div>
+        <span class="silk">USB-C</span>
+      </div>
+    </section>
+
+    <div class="controls">
+      <section class="card" aria-labelledby="hVoice">
+        <h2 id="hVoice">Voice in</h2>
+        <div class="seg" role="group" aria-label="Voice source">
+          <button type="button" id="srcDemo" aria-pressed="false">Demo voice</button>
+          <button type="button" id="srcFile" aria-pressed="false">Recording…</button>
+          <button type="button" id="srcMic" aria-pressed="false">Microphone</button>
+          <button type="button" id="srcOff" aria-pressed="true">Off</button>
+        </div>
+        <input type="file" id="fileIn" accept="audio/*" hidden>
+        <label class="chk"><input type="checkbox" id="monitor" checked> Play the effect through my speakers</label>
+        <p class="note" id="srcNote">Demo voice is a synthetic buzz with pauses, so you can watch the VOX key up and down. Use headphones with the microphone.</p>
+        <p class="status" id="status" role="status"></p>
+      </section>
+
+      <section class="card" aria-labelledby="hRead">
+        <h2 id="hRead">Readouts</h2>
+        <div class="readouts">
+          <div class="ro"><span>VOX</span><b><i class="lamp" id="voxLamp"></i><em id="voxTxt" style="font-style:normal">idle</em></b></div>
+          <div class="ro"><span>LVGL heap</span><b id="heap">–</b></div>
+          <div class="ro"><span>DSP rate</span><b id="rate">–</b></div>
+        </div>
+        <p class="note">The heap is the same 64 KB pool the firmware gets, so a screen that runs out here runs out on the device.</p>
+      </section>
+
+      <section class="card" aria-labelledby="hBoard">
+        <h2 id="hBoard">Board</h2>
+        <select id="res" aria-label="Board and display size">
+          <option value="320x172|ESP32-S3-TOUCH-LCD-1.47">1.47" LCD · 320 × 172 (current)</option>
+          <option value="284x240|ESP32-S3-TOUCH-LCD-1.83">1.83" LCD · 284 × 240 (candidate)</option>
+          <option value="448x368|ESP32-S3-TOUCH-AMOLED-1.8">1.8" AMOLED · 448 × 368 (candidate)</option>
+          <option value="480x480|ESP32-S3-TOUCH-AMOLED-2.16">2.16" AMOLED · 480 × 480 (candidate)</option>
+        </select>
+        <p class="note">The UI is laid out for 320 × 172 today. The candidate sizes show how much re-layout each new board needs before it goes on hardware.</p>
+      </section>
+
+      <section class="card" aria-labelledby="hRender" id="renderCard">
+        <h2 id="hRender">Render a recording</h2>
+        <p class="note">Run a voice recording through the effect at the device's 16 kHz and save the result as a WAV.</p>
+        <div class="row">
+          <button type="button" class="act primary" id="renderBtn">Choose recording</button>
+          <input type="file" id="renderIn" accept="audio/*" hidden>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <footer>Built from <code>firmware/main/ui.c</code> and <code>dsp.c</code> with LVGL 8.4.0, unmodified. Effect settings (VOX, effect, static, click, gains) live in the gear menu on the screen, same as the device.</footer>
+</div>
+
+<script type="module">
+import { createSim } from './vstorm-core.js';   // bundle.mjs inlines this
+
+const $ = (id) => document.getElementById(id);
+const canvas = $('screen'), ctx2d = canvas.getContext('2d');
+const wasmBytes = await (globalThis.VSTORM_WASM_B64
+  ? Uint8Array.from(atob(globalThis.VSTORM_WASM_B64), c => c.charCodeAt(0))
+  : fetch('./vstorm.wasm').then(r => r.arrayBuffer()));
+
+/* settings blob <-> localStorage (best effort) */
+const store = new Map();
+const KEY = 'vstorm.settings';
+try { const s = localStorage.getItem(KEY); if (s) store.set(KEY, Uint8Array.from(atob(s), c => c.charCodeAt(0))); } catch {}
+function persist() {
+  try {
+    const b = store.get(KEY);
+    if (b) localStorage.setItem(KEY, btoa(String.fromCharCode(...b))); else localStorage.removeItem(KEY);
+  } catch {}
+}
+
+let sim, img, lastDirty = -1, dspRate = 16000;
+async function boot(w, h) {
+  sim = await createSim(wasmBytes, { width: w, height: h, store, onSave: persist,
+    onFactoryReset: () => { persist(); setTimeout(() => boot(w, h), 0); } });
+  sim.audioSetRate(dspRate);
+  canvas.width = w; canvas.height = h;
+  const scale = Math.max(1, Math.floor(Math.min(640 / w, 520 / h)));
+  canvas.style.width = (w * scale) + 'px';
+  img = ctx2d.createImageData(w, h);
+  lastDirty = -1;
+}
+await boot(320, 172);
+
+function frame() {
+  sim.loop();
+  const d = sim.dirty();
+  if (d !== lastDirty) { img.data.set(sim.pixels()); ctx2d.putImageData(img, 0, 0); lastDirty = d; }
+  canvas.style.filter = `brightness(${0.25 + 0.75 * sim.brightness() / 100})`;
+  const k = sim.keyed();
+  $('voxLamp').classList.toggle('on', k); $('voxTxt').textContent = k ? 'keyed' : 'idle';
+  $('heap').textContent = (sim.memUsed() / 1024).toFixed(1) + ' KB';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* touch */
+function toScreen(e) {
+  const r = canvas.getBoundingClientRect();
+  return [(e.clientX - r.left) * canvas.width / r.width, (e.clientY - r.top) * canvas.height / r.height];
+}
+canvas.addEventListener('pointerdown', e => { canvas.setPointerCapture(e.pointerId); sim.touch(...toScreen(e), true); });
+canvas.addEventListener('pointermove', e => { if (e.buttons) sim.touch(...toScreen(e), true); });
+canvas.addEventListener('pointerup', e => sim.touch(...toScreen(e), false));
+canvas.addEventListener('pointercancel', e => sim.touch(...toScreen(e), false));
+
+/* BOOT button: click = mute, 3 s = lock, 10 s = factory reset (as firmware) */
+const bootBtn = $('boot'), bar = $('holdBar');
+let holdT0 = 0, holdRaf = 0, fired = 0;
+function holdTick() {
+  const t = (performance.now() - holdT0) / 1000;
+  if (t >= 3 && fired < 1) { fired = 1; sim.bootLock(); }
+  if (t >= 10 && fired < 2) { fired = 2; sim.bootReset(); }
+  bar.style.width = Math.min(100, t * 10) + '%';
+  bar.classList.toggle('reset', t >= 3);
+  holdRaf = requestAnimationFrame(holdTick);
+}
+function bootDown(e) { e.preventDefault(); bootBtn.classList.add('down'); holdT0 = performance.now(); fired = 0; holdTick(); }
+function bootUp() {
+  if (!holdT0) return;
+  cancelAnimationFrame(holdRaf); bootBtn.classList.remove('down'); bar.style.width = '0';
+  if (fired === 0) sim.bootClick();
+  holdT0 = 0;
+}
+bootBtn.addEventListener('pointerdown', bootDown);
+bootBtn.addEventListener('pointerup', bootUp);
+bootBtn.addEventListener('pointerleave', bootUp);
+bootBtn.addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) bootDown(e); });
+bootBtn.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') bootUp(); });
+
+/* board size */
+$('res').addEventListener('change', async e => {
+  const [res, name] = e.target.value.split('|');
+  const [w, h] = res.split('x').map(Number);
+  $('boardName').textContent = name; $('boardRes').textContent = `${w} × ${h}`;
+  await boot(w, h);
+});
+
+/* ---------- audio ---------- */
+let ac, proc, source = 'off', srcNode, micStream, fileBuf;
+const status = (t) => { $('status').textContent = t; };
+async function ensureAudio() {
+  if (ac) return;
+  try { ac = new AudioContext({ sampleRate: 16000 }); } catch { ac = new AudioContext(); }
+  dspRate = ac.sampleRate; sim.audioSetRate(dspRate);
+  $('rate').textContent = (dspRate / 1000) + ' kHz';
+  proc = ac.createScriptProcessor(1024, 1, 1);
+  proc.onaudioprocess = (ev) => {
+    const out = ev.outputBuffer.getChannelData(0);
+    let input;
+    if (source === 'demo') input = demoBlock(out.length);
+    else if (source === 'off') input = new Float32Array(out.length);
+    else input = ev.inputBuffer.getChannelData(0);
+    const y = sim.audioProcess(input);
+    if ($('monitor').checked && source !== 'off') out.set(y); else out.fill(0);
+  };
+  proc.connect(ac.destination);
+}
+
+/* synthetic voice: glottal buzz through two vowel formants, syllables, pauses */
+const VOWELS = [[730, 1090], [270, 2290], [530, 1840], [570, 840], [300, 870]];
+let dph = 0, dt = 0, f1s = [0, 0], f2s = [0, 0], vow = VOWELS[0];
+function reson(st, f, bw, x) {
+  const r = Math.exp(-Math.PI * bw / dspRate), c = 2 * r * Math.cos(2 * Math.PI * f / dspRate);
+  const y = x + c * st[0] - r * r * st[1]; st[1] = st[0]; st[0] = y; return y * (1 - r);
+}
+function demoBlock(n) {
+  const b = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    dt += 1 / dspRate;
+    const cyc = dt % 3.2;                         // 2.2 s talking, 1 s quiet
+    const syl = (cyc * 4.3) % 1;
+    if (syl < 1 / dspRate * 4.3 * 1.5) vow = VOWELS[(Math.random() * VOWELS.length) | 0];
+    const env = cyc < 2.2 ? Math.sin(Math.PI * syl) ** 0.6 : 0;
+    const pitch = 118 + 14 * Math.sin(dt * 2.1) - 20 * (cyc / 2.2);
+    dph += pitch / dspRate;
+    const pulse = (dph % 1) < 0.08 ? 1 : -0.087;  // narrow glottal pulse
+    const x = pulse * env;
+    const v = reson(f1s, vow[0], 90, x) * 1.0 + reson(f2s, vow[1], 120, x) * 0.6;
+    b[i] = Math.max(-1, Math.min(1, v * 9 + (Math.random() * 2 - 1) * 0.002));
+  }
+  return b;
+}
+
+function setSource(s) {
+  source = s;
+  for (const [id, v] of [['srcDemo', 'demo'], ['srcFile', 'file'], ['srcMic', 'mic'], ['srcOff', 'off']])
+    $(id).setAttribute('aria-pressed', String(v === s));
+}
+function disconnectSrc() { try { srcNode?.disconnect(); srcNode?.stop?.(); } catch {} srcNode = null; }
+
+$('srcOff').onclick = () => { disconnectSrc(); setSource('off'); status(''); };
+$('srcDemo').onclick = async () => { await ensureAudio(); await ac.resume(); disconnectSrc(); setSource('demo'); status('Demo voice playing.'); };
+$('srcFile').onclick = () => $('fileIn').click();
+$('fileIn').onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  await ensureAudio(); await ac.resume();
+  try { fileBuf = await ac.decodeAudioData(await f.arrayBuffer()); }
+  catch { status('That file could not be decoded. Try a WAV or MP3.'); return; }
+  disconnectSrc();
+  srcNode = ac.createBufferSource(); srcNode.buffer = fileBuf; srcNode.loop = true;
+  srcNode.connect(proc); srcNode.start();
+  setSource('file'); status(`Looping ${f.name}.`);
+  e.target.value = '';
+};
+if (!navigator.mediaDevices?.getUserMedia) $('srcMic').disabled = true;
+$('srcMic').onclick = async () => {
+  await ensureAudio(); await ac.resume();
+  try {
+    micStream ??= await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  } catch {
+    $('srcMic').disabled = true;
+    status('Microphone is not available here. Use Demo voice or a recording, or run the simulator locally.');
+    return;
+  }
+  disconnectSrc();
+  try { srcNode = ac.createMediaStreamSource(micStream); }
+  catch { status('This browser cannot mix the mic into a 16 kHz context. Try Chrome.'); return; }
+  srcNode.connect(proc); setSource('mic'); status('Microphone live. Use headphones to avoid feedback.');
+};
+
+/* ---------- offline render to WAV (local runs only: hosted views can't save .wav) ---------- */
+const isLocal = location.protocol === 'file:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+if (!isLocal) $('renderCard').hidden = true;
+$('renderBtn').onclick = () => $('renderIn').click();
+$('renderIn').onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  e.target.value = '';
+  status(`Rendering ${f.name}…`);
+  try {
+    const tmp = new (window.AudioContext)();
+    const decoded = await tmp.decodeAudioData(await f.arrayBuffer()); tmp.close();
+    const len = Math.ceil(decoded.duration * 16000);
+    const oac = new OfflineAudioContext(1, len, 16000);
+    const s = oac.createBufferSource(); s.buffer = decoded; s.connect(oac.destination); s.start();
+    const mono = (await oac.startRendering()).getChannelData(0);
+    const off = await createSim(wasmBytes, { store: new Map(store), now: () => 0 });
+    off.audioSetRate(16000);
+    const outPcm = new Int16Array(len);
+    for (let i = 0; i < len; i += 4096) {
+      const y = off.audioProcess(mono.subarray(i, Math.min(len, i + 4096)));
+      for (let j = 0; j < y.length; j++) outPcm[i + j] = Math.max(-32768, Math.min(32767, y[j] * 32767));
+    }
+    const name = f.name.replace(/\.[^.]+$/, '') + '-stormtrooper.wav';
+    await saveFile(name, wav16k(outPcm));
+  } catch (err) { status('Rendering failed: ' + (err.message || err)); }
+};
+function wav16k(pcm) {
+  const b = new ArrayBuffer(44 + pcm.length * 2), v = new DataView(b);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + pcm.length * 2, true); w(8, 'WAVEfmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, pcm.length * 2, true);
+  new Int16Array(b, 44).set(pcm);
+  return new Uint8Array(b);
+}
+async function saveFile(name, bytes) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' })); a.download = name; a.click();
+  status(`Saved ${name}.`);
+}
+</script>

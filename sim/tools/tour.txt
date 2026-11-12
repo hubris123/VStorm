@@ -1,0 +1,24 @@
+# walk every screen of the current UI
+signal 0.5 800
+shot 01_main
+tap 270 19          # settings gear
+shot 02_settings
+tap 290 19          # -> AUDIO
+signal 0.4 600
+shot 03_audio
+tap 290 19          # -> CALLSIGN
+shot 04_callsign
+tap 290 19          # -> BRIGHTNESS
+shot 05_brightness
+tap 290 19          # wraps -> main
+tap 53 150          # LOCK
+shot 06_lock_confirm
+tap 88 128          # confirm LOCK in the popup
+signal 0.5 600
+shot 07_locked
+tap 160 90          # 5 rapid taps unlock
+tap 160 90
+tap 160 90
+tap 160 90
+tap 160 90
+shot 08_unlocked

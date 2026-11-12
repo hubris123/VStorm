@@ -41,10 +41,14 @@ static audio_mode_t s_premute_mode = AUDIO_MODE_PASSTHROUGH;
 static uint32_t s_tap_times[UNLOCK_TAPS];
 static int s_tap_idx = 0;
 
+#ifdef UI_SIM
+#include "sim_assets.h"  /* simulator (sim/): fonts linked as plain C arrays */
+#else
 extern const uint8_t aurebesh_ttf_start[] asm("_binary_aurebesh_ttf_start");
 extern const uint8_t aurebesh_ttf_end[]   asm("_binary_aurebesh_ttf_end");
 extern const uint8_t aureng_ttf_start[] asm("_binary_aurebesh_english_ttf_start");
 extern const uint8_t aureng_ttf_end[]   asm("_binary_aurebesh_english_ttf_end");
+#endif
 
 /* ---------- shared helpers ---------- */
 
