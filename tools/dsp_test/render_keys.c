@@ -44,7 +44,8 @@ int main(int argc, char **argv)
             keysnd_start(up, 0.9f);
             while (keysnd_active() && n < SR - SR / 50) buf[n++] = keysnd_next();
             for (int i = 0; i < SR / 50; i++) buf[n++] = 0;
-            snprintf(p, sizeof p, "%s/ours_%02d_%s.wav", dir, k + 1, up ? "up" : "down");
+            static const char *KN[] = {"tock", "stutter", "carrier", "squelch", "chirp", "pops"};
+            snprintf(p, sizeof p, "%s/ours_%02d_%s_%s.wav", dir, k + 1, up ? "up" : "down", KN[keysnd_kind() % 6]);
             wav_write(p, buf, n, SR);
             if (dn + n < SR * 119) { memcpy(demo + dn, buf, n * sizeof(float)); dn += n; }
             for (int i = 0; i < SR * 6 / 10 && dn < SR * 119; i++) demo[dn++] = 0;   /* 0.6 s apart */

@@ -8,3 +8,4 @@ void keysnd_start(bool keyup, float volume);
 /* next output sample (-1..1 scaled by volume); 0 when idle */
 float keysnd_next(void);
 bool keysnd_active(void);
+int keysnd_kind(void);        /* last sound kind (0 tock, 1 stutter, 2 carrier, 3 squelch, 4 chirp, 5 pops) */
