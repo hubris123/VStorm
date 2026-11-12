@@ -74,7 +74,7 @@ typedef struct {               /* a block of band-limited radio hiss with soft o
 
 static int s_rate = 16000;
 static struct {
-    int n, len, kind;
+    int n, len, kind, head;
     click_t c[MAX_CLICKS];
     int nc;
     block_t b[MAX_BLOCKS];
@@ -86,6 +86,7 @@ static struct {
 void keysnd_init(int rate_hz) { s_rate = rate_hz; K.n = K.len = 0; }
 bool keysnd_active(void) { return K.n < K.len; }
 int keysnd_kind(void) { return K.kind; }
+int keysnd_head(void) { return K.head; }
 
 static float ring_pitch(void)
 {
@@ -192,6 +193,29 @@ void keysnd_start(bool keyup, float volume)
     }
     }
     K.len = end;
+    if (keyup) {
+        /* key-up leads the transmission: start at once (no lead-in), and report where the main
+         * click has passed so the voice can come in right after it */
+        int first = end, main_at = 0;
+        float main_amp = -1;
+        for (int i = 0; i < K.nc; i++) {
+            if (K.c[i].at < first) first = K.c[i].at;
+            if (K.c[i].amp > main_amp) { main_amp = K.c[i].amp; main_at = K.c[i].at; }
+        }
+        for (int i = 0; i < K.nb; i++) if (K.b[i].start < first) first = K.b[i].start;
+        int shift = first - MS(3);
+        if (shift > 0) {
+            for (int i = 0; i < K.nc; i++) K.c[i].at -= shift;
+            for (int i = 0; i < K.nb; i++) { K.b[i].start -= shift; K.b[i].end -= shift; }
+            K.len -= shift;
+            main_at -= shift;
+        }
+        if (K.nc == 0) main_at = K.nb ? K.b[0].end - MS(40) : 0;   /* carrier: after the hiss block */
+        K.head = main_at + MS(40);
+        if (K.head > MS(160)) K.head = MS(160);
+    } else {
+        K.head = 0;
+    }
     /* some sounds carry a dim full-band hiss under everything (like an open channel) */
     K.floor_amp = rnd01() < 0.8f ? jit(0.008f, 0.02f) : 0.0f;
     bq_band(&K.floor_band, jit(1500, 3000), 0.4f, s_rate);
@@ -229,7 +253,7 @@ float keysnd_next(void)
     body += bq_run(&K.floor_band, noise()) * K.floor_amp * 3.0f;
     float out = bq_run(&K.hp, bq_run(&K.lp2, bq_run(&K.lp1, body))) * 1.6f
               + bq_run(&K.crack_hp, crack) * 0.5f;                    /* bright cracks reach past the band */
-    if (out > 1.0f) out = 1.0f;
-    if (out < -1.0f) out = -1.0f;
-    return out * K.vol;
+    /* as loud as the processed voice (the trooper drive makes that loud): x3, peaks rounded */
+    out = tanhf(out * 3.0f * K.vol);
+    return out;
 }

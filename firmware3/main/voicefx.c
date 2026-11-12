@@ -53,6 +53,7 @@ typedef enum { VOX_IDLE, VOX_OPEN, VOX_KEYDOWN } vox_t;
 static vox_t s_vox = VOX_IDLE;
 static float s_env;
 static int s_hang;
+static int s_open_n, s_duck;        /* samples since the gate opened; key-up head to wait out */
 #define VOX_HANG (s_rate * 35 / 100)            /* 350 ms */
 
 /* SOFT CLIP: straight up to the knee, then a smooth curve that approaches full scale, so
@@ -115,7 +116,10 @@ int16_t voicefx_process(float x_q15, bool *clipped)
     float kv = 0.9f * P.click / 100.0f;
     switch (s_vox) {
     case VOX_IDLE:
-        if (above) { s_vox = VOX_OPEN; s_hang = VOX_HANG; keysnd_start(true, kv); }
+        if (above) {
+            s_vox = VOX_OPEN; s_hang = VOX_HANG; keysnd_start(true, kv);
+            s_open_n = 0; s_duck = keysnd_head();            /* the key-up comes first */
+        }
         break;
     case VOX_OPEN:
         if (above) s_hang = VOX_HANG;
@@ -129,7 +133,12 @@ int16_t voicefx_process(float x_q15, bool *clipped)
 
     float out = 0;
     if (s_vox == VOX_OPEN) {
-        out = radio(v);
+        /* the voice comes in after the key-up's click (40 ms fade), like a real radio */
+        float g = 1.0f;
+        if (s_open_n < s_duck) g = 0.0f;
+        else if (s_open_n < s_duck + s_rate / 25) g = (float)(s_open_n - s_duck) / (s_rate / 25);
+        s_open_n++;
+        out = radio(v) * g;
         out += noisef() * 0.12f * (P.stat / 100.0f);
     }
     out += keysnd_next();
