@@ -785,7 +785,7 @@ static void toggles_refresh(void)
     }
     /* unit selector: not on/off, so never lit */
     lv_label_set_text(cap_tog[4].lbl, S.temp_f ? "F" : "C");
-    lv_label_set_text(cap_tog[4].sub, S.temp_f ? "FAHRENHEIT" : "CELSIUS");
+    lv_label_set_text(cap_tog[4].sub, "UNIT");          /* the big F / C says which */
     sub_fit(&cap_tog[4]);
     lv_obj_align(cap_tog[4].lbl, LV_ALIGN_CENTER, 0, -12);
     lv_obj_align(cap_tog[4].sub, LV_ALIGN_CENTER, 0, 16);
@@ -959,15 +959,19 @@ static void build_settings(void)
     cap_plus = make_cap(scr_settings, 192, 204, 160, 104, LV_SYMBOL_PLUS, "HOLD TO REPEAT", COL_BLUE, true,
                         step_cb, LV_EVENT_PRESSED, (void *)(intptr_t)1);
     cap_wide = make_cap(scr_settings, 16, 204, 336, 104, "EDIT", "", COL_AMBER, false, wide_cb, LV_EVENT_ALL, NULL);
-    static const char *TOG[NTOG] = {"BATTERY", "TILT GRID", "QUIET\nONLY", "TEMP", "F"};
+    static const char *TOG[NTOG] = {"BATTERY", "TILT\nGRID", "QUIET\nONLY", "TEMP", "F"};
     static const int TX[NTOG] = {16, 132, 248, 16, 132}, TY[NTOG] = {204, 204, 204, 88, 88};
     for (int i = 0; i < NTOG; i++) {
         cap_tog[i] = make_cap(scr_settings, TX[i], TY[i], 104, 104, TOG[i], "ON", i == 4 ? COL_AMBER : COL_GREEN,
                               false, toggle_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         if (i == 4) lv_obj_set_style_text_font(cap_tog[i].lbl, &lv_font_montserrat_28, 0);
-        lv_point_t sz;                                                 /* name: 18 px, 16 px if wide */
-        lv_txt_get_size(&sz, TOG[i], &lv_font_montserrat_18, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        if (sz.x > 76) lv_obj_set_style_text_font(cap_tog[i].lbl, &lv_font_montserrat_16, 0);
+        /* names 16 px so the five keys match; 14 px if 16 would leave < 8 px each side of the cap */
+        if (i != 4) {
+            lv_point_t sz;
+            lv_obj_set_style_text_font(cap_tog[i].lbl, &lv_font_montserrat_16, 0);
+            lv_txt_get_size(&sz, TOG[i], &lv_font_montserrat_16, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            if (sz.x > 66) lv_obj_set_style_text_font(cap_tog[i].lbl, &lv_font_montserrat_14, 0);
+        }
         if (strchr(TOG[i], '\n')) {
             lv_obj_set_style_text_align(cap_tog[i].lbl, LV_TEXT_ALIGN_CENTER, 0);
             lv_obj_set_style_text_line_space(cap_tog[i].lbl, -2, 0);
