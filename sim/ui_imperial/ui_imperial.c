@@ -117,8 +117,10 @@ static void cap_style(cap_t *k, bool lit)
         lv_obj_set_style_shadow_width(c, 22, 0);
         lv_obj_set_style_shadow_spread(c, 2, 0);
         lv_obj_set_style_shadow_opa(c, LV_OPA_70, 0);
-        lv_obj_set_style_text_color(k->lbl, C(0xFFF4F0), 0);
-        if (k->sub) lv_obj_set_style_text_color(k->sub, C(0xFFF4F0), 0);
+        /* yellow caps take dark lettering; red/green take near-white */
+        lv_color_t ink = lv_color_to32(k->accent) == lv_color_to32(COL_AMBER) ? C(0x1A1200) : C(0xFFF4F0);
+        lv_obj_set_style_text_color(k->lbl, ink, 0);
+        if (k->sub) lv_obj_set_style_text_color(k->sub, ink, 0);
     } else {
         lv_obj_set_style_bg_color(c, C(0x353C43), 0);
         lv_obj_set_style_bg_grad_color(c, C(0x1A1E22), 0);
@@ -503,7 +505,7 @@ static void build_lock(void)
 }
 
 /* ================= SETTINGS ================= */
-enum { P_VOLUME, P_EFFECT, P_VOX, P_STATIC, P_CLICK, P_BRIGHT, P_CALLSIGN, P_RESET, NPAGES };
+enum { P_VOLUME, P_EFFECT, P_VOX, P_STATIC, P_CLICK, P_BRIGHT, P_CALLSIGN, P_RESET, P_DISPLAY, NPAGES };
 static const struct { const char *title, *desc; int min, max; } PAGE[NPAGES] = {
     {"VOLUME", "SPEAKER LEVEL", 0, 100},
     {"EFFECT", "DRIVE + BITCRUSH", 0, 100},
@@ -513,10 +515,11 @@ static const struct { const char *title, *desc; int min, max; } PAGE[NPAGES] = {
     {"BRIGHTNESS", "PANEL LIGHT", 10, 100},
     {"CALLSIGN", "", 0, 0},
     {"FACTORY RESET", "", 0, 0},
+    {"DISPLAY OFF", "", 0, 0},
 };
 static int page;
 static lv_obj_t *set_bg, *set_title, *set_count, *set_pip;
-static lv_obj_t *grp_value, *grp_cs, *grp_reset;          /* per-page content groups */
+static lv_obj_t *grp_value, *grp_cs, *grp_reset, *grp_disp;   /* per-page content groups */
 static lv_obj_t *g_arc, *g_val, *g_desc, *g_bar[10], *g_tick[2], *g_lamp[3], *g_spin;
 static lv_obj_t *cs_show;
 static lv_obj_t *rs_seg[20];
@@ -566,13 +569,14 @@ static void page_show(void)
     lv_label_set_text_fmt(set_count, "%d/%d", page + 1, NPAGES);
     lv_obj_update_layout(set_count);
     lv_obj_set_pos(set_count, 322 - lv_obj_get_width(set_count), 19);
-    lv_obj_set_x(set_pip, 46 + page * 35);
-    bool wide = (page == P_CALLSIGN || page == P_RESET);
+    lv_obj_set_x(set_pip, 46 + page * 31);
+    bool wide = (page == P_CALLSIGN || page == P_RESET || page == P_DISPLAY);
     lv_img_set_src(set_bg, wide ? &skin_set_wide : &skin_set_value);
     if (wide) { lv_obj_add_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
     else { lv_obj_clear_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
     if (page == P_CALLSIGN) lv_obj_clear_flag(grp_cs, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_cs, LV_OBJ_FLAG_HIDDEN);
     if (page == P_RESET) lv_obj_clear_flag(grp_reset, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_reset, LV_OBJ_FLAG_HIDDEN);
+    if (page == P_DISPLAY) lv_obj_clear_flag(grp_disp, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_disp, LV_OBJ_FLAG_HIDDEN);
     if (wide) lv_obj_clear_flag(cap_wide.cap, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(cap_wide.cap, LV_OBJ_FLAG_HIDDEN);
     if (!wide) { lv_obj_clear_flag(cap_minus.cap, LV_OBJ_FLAG_HIDDEN); lv_obj_clear_flag(cap_plus.cap, LV_OBJ_FLAG_HIDDEN); }
     else { lv_obj_add_flag(cap_minus.cap, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cap_plus.cap, LV_OBJ_FLAG_HIDDEN); }
@@ -590,6 +594,11 @@ static void page_show(void)
         lv_label_set_text(cap_wide.sub, "ARMING 0%");
         cap_style(&cap_wide, true);
         for (int i = 0; i < 20; i++) lv_obj_set_style_bg_color(rs_seg[i], COL_DIM, 0);
+    } else if (page == P_DISPLAY) {
+        cap_wide.accent = COL_AMBER;
+        lv_label_set_text(cap_wide.lbl, "TURN DISPLAY OFF");
+        lv_label_set_text(cap_wide.sub, "TAP 5 TIMES TO WAKE");
+        cap_style(&cap_wide, true);
     } else {
         lv_label_set_text(g_desc, PAGE[page].desc);
         value_refresh();
@@ -630,12 +639,17 @@ static void nav_cb(lv_event_t *e)
 }
 
 static void open_callsign(void);
+static void display_off(void);
 
 static void wide_cb(lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     if (page == P_CALLSIGN) {
         if (code == LV_EVENT_CLICKED) open_callsign();
+        return;
+    }
+    if (page == P_DISPLAY) {
+        if (code == LV_EVENT_CLICKED) display_off();
         return;
     }
     if (page == P_RESET) {
@@ -670,7 +684,7 @@ static void build_settings(void)
     set_title = label(scr_settings, "", &lv_font_montserrat_22, COL_TEXT);
     lv_obj_set_pos(set_title, 46, 15);
     set_count = label(scr_settings, "", &lv_font_montserrat_16, COL_LABEL);
-    set_pip = box(scr_settings, 46, 46, 29, 4, COL_AMBER);
+    set_pip = box(scr_settings, 46, 46, 25, 4, COL_AMBER);
 
     /* value pages */
     grp_value = group(scr_settings);
@@ -708,6 +722,15 @@ static void build_settings(void)
     lv_obj_t *r2 = label(grp_reset, "Hold the switch for 2 seconds", &lv_font_montserrat_14, COL_LABEL);
     center_at(r2, 184, 110);
     for (int i = 0; i < 20; i++) rs_seg[i] = box(grp_reset, 46 + i * 14, 138, 10, 22, COL_DIM);
+
+    /* display-off page */
+    grp_disp = group(scr_settings);
+    lv_obj_t *d1 = label(grp_disp, "Blank the screen. Voice keeps working,", &lv_font_montserrat_14, COL_TEXT);
+    center_at(d1, 184, 88);
+    lv_obj_t *d2 = label(grp_disp, "BOOT still switches LIVE / MUTED.", &lv_font_montserrat_14, COL_TEXT);
+    center_at(d2, 184, 110);
+    lv_obj_t *d3 = label(grp_disp, "Tap the screen 5 times to wake it.", &lv_font_montserrat_14, COL_AMBER);
+    center_at(d3, 184, 146);
 
     cap_minus = make_cap(scr_settings, 16, 196, 160, 104, LV_SYMBOL_MINUS, "HOLD TO REPEAT", COL_BLUE, true,
                          step_cb, LV_EVENT_PRESSED, (void *)(intptr_t)-1);
@@ -814,6 +837,53 @@ static void build_callsign(void)
     cap_style(&save, true);
     make_cap(scr_callsign, 248, 312, 104, 104, LV_SYMBOL_RIGHT, "POSITION", COL_BLUE, true,
              cs_pos_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
+}
+
+/* ================= DISPLAY OFF (blank screen) ================= */
+/* Everything black (AMOLED pixels off) except one dim line of text in the middle, which
+ * drifts a few px every 20 s so it can't burn in. 5 quick taps wake the console. */
+static lv_obj_t *scr_blank, *blank_lbl;
+static uint32_t wake_times[5];
+static int wake_idx;
+
+static void blank_drift_cb(lv_timer_t *t)
+{
+    if (lv_scr_act() != scr_blank) return;
+    center_at(blank_lbl, SCR_W / 2 + (int)(rnd() % 41) - 20, SCR_H / 2 + (int)(rnd() % 61) - 30);
+}
+
+static void blank_tap_cb(lv_event_t *e)
+{
+    uint32_t now = lv_tick_get();
+    wake_times[wake_idx % 5] = now;
+    wake_idx++;
+    lv_obj_set_style_text_color(blank_lbl, COL_AMBER, 0);             /* acknowledge the tap */
+    if (wake_idx >= 5 && now - wake_times[wake_idx % 5] <= 2500) {
+        wake_idx = 0;
+        lv_label_set_text(con_main.callsign, S.callsign);
+        lv_scr_load(con_main.scr);
+    }
+}
+
+static void display_off(void)
+{
+    wake_idx = 0;
+    lv_obj_set_style_text_color(blank_lbl, C(0x6B5212), 0);           /* dim amber */
+    center_at(blank_lbl, SCR_W / 2, SCR_H / 2);
+    lv_scr_load(scr_blank);
+}
+
+static void build_blank(void)
+{
+    scr_blank = lv_obj_create(NULL);
+    lv_obj_set_style_bg_color(scr_blank, lv_color_black(), 0);
+    lv_obj_clear_flag(scr_blank, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(scr_blank, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(scr_blank, blank_tap_cb, LV_EVENT_CLICKED, NULL);
+    blank_lbl = label(scr_blank, "TAP 5 TIMES\nTO WAKE DISPLAY", &lv_font_montserrat_18, C(0x6B5212));
+    lv_obj_set_style_text_align(blank_lbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_clear_flag(blank_lbl, LV_OBJ_FLAG_CLICKABLE);
+    lv_timer_create(blank_drift_cb, 20000, NULL);
 }
 
 /* ================= life: timers ================= */
@@ -949,6 +1019,7 @@ void ui_init(void)
     build_lock();
     build_settings();
     build_callsign();
+    build_blank();
 
     lv_timer_create(fast_cb, 40, NULL);
     lv_timer_create(ring_cb, 50, NULL);

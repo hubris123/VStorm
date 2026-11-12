@@ -80,9 +80,9 @@ def lock_bg():
 
 
 def settings_common(sc):
-    for i in range(8):                                      # page pip wells
-        x = 46 + i * 35
-        sc.rect(x, 46, x + 29, 50, fill=m.DIM)
+    for i in range(9):                                      # page pip wells (9 settings pages)
+        x = 46 + i * 31
+        sc.rect(x, 46, x + 25, 50, fill=m.DIM)
     m.notched_frame(sc, 16, 60, 352, 184)
     for x in (16, 132, 248):
         wells(sc, x, 312, 104, 104)

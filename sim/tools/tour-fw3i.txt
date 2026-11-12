@@ -42,3 +42,16 @@ tap 184 200
 tap 184 200
 wait 300
 shot 11_unlocked
+tap 184 360         # SYS
+tap 68 364          # PREV -> page 9 (DISPLAY OFF)
+shot 12_settings_display_off
+tap 184 248         # TURN DISPLAY OFF
+wait 500
+shot 13_display_off
+tap 100 100
+tap 100 100
+tap 100 100
+tap 100 100
+tap 100 100
+wait 300
+shot 14_woken

@@ -108,8 +108,9 @@ Interaction rules that follow:
 | Screen | Job | Main controls |
 |---|---|---|
 | **Main** | Am I live? Am I heard? | Scope + TX lamp (top), big LIVE/MUTED key, LOCK key, SETTINGS key |
-| **Settings** (paged) | Tune effect | One value per page: big name, segmented bar, − / + keys, ◀ ▶ to page. Pages: VOLUME, EFFECT, VOX, STATIC, CLICK, BRIGHTNESS |
+| **Settings** (paged) | Tune effect | One value per page: big name, segmented bar, − / + keys, ◀ ▶ to page. Pages (9): VOLUME, EFFECT, VOX, STATIC, CLICK, BRIGHTNESS, CALLSIGN, FACTORY RESET (red, hold 2 s), DISPLAY OFF (yellow, tap) |
 | **Callsign** | Set "TK-421" | Code-cylinder: 1 character at a time, big ▲ ▼ for the character, ◀ ▶ for position, COMMIT |
+| **Display off** | Blank the panel, keep working | All black except one dim amber line in the middle, "TAP 5 TIMES TO WAKE DISPLAY", drifting a few px every 20 s (burn-in). 5 quick taps wake to Main. Audio and BOOT keep working |
 | **Lock** | Prop mode, ignore stray taps | Full-screen decoration (Aurebesh, lamps, live scope). Unlock: 5 rapid taps, as on the 1.47 |
 | **Confirm** | Dangerous actions | Hold-to-confirm bar |
 
