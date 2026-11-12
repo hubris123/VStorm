@@ -54,7 +54,7 @@ four. Red always means "transmitting / live / danger". Keep large areas black.
 |---|---|---|
 | Labels, keys | Condensed square sans, all caps, +1–2 px letter spacing | 20–24 px |
 | Big readout (values, callsign) | Same face, tabular digits | 32–40 px |
-| Microtext / decoration | Aurebesh (Tiny TTF, already in repo) | 12–16 px |
+| Microtext / decoration | Aurebesh (Tiny TTF, already in repo), letter spacing ≈ 0.22 em + 15 % horizontal stretch, letters only (its digits render as tiny marks) | 12–16 px |
 | Fallback | Montserrat (built in) | — |
 
 - Candidate Latin faces (OFL, free for commercial use; convert with `lv_font_conv`):
@@ -92,6 +92,9 @@ Interaction rules that follow:
 - **Hit area ≥ drawn area.** A key may look like a 90 px frame but its touch area fills the cell
   (LVGL `ext_click_area`).
 - **Press feedback within one frame:** key face fills with its accent while pressed.
+- **Keys are console hardware:** housing radius ≈ 9 px, cap radius ≈ 6 px, bevelled cap,
+  panel screws; lit keys glow around the edge (never over the label). Display frames stay
+  square/notched.
 - **Destructive = hold.** Factory reset and similar: hold 2 s with a filling bar, no tiny
   confirm buttons.
 - **One-thumb reach:** the most-used keys sit in the bottom half.
@@ -113,7 +116,8 @@ that is why the callsign screen becomes one-character-at-a-time.
 ## 6. Motion
 
 - Lamps: slow drift between colours (existing), red pulse ≈ 6 s.
-- Readouts: microtext ticks every 300–400 ms; hex/number scramble on change.
+- Readouts: lines hold still; about every 1.5–3 s ONE line changes to a new word. No scrolling,
+  no whole-block flicker. (Hex codes on the lock screen may change faster.)
 - Screen change: hard cut or a 120 ms horizontal wipe with a scan line. No fades.
 - Key press: instant fill, 80 ms release.
 - Respect frame rate: the SH8601 path redraws over QSPI; keep animated areas small.

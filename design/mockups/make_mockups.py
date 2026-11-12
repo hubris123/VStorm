@@ -61,18 +61,56 @@ class Screen:
         self.d.line([(x * S, y * S) for x, y in pts], fill=fill, width=width * S)
 
     def text(self, x, y, s, f, fill, anchor="la"):
+        if getattr(f, "path", "") == AUREB:
+            return self.spaced_text(x, y, s, f, fill, anchor)
         self.d.text((x * S, y * S), s, font=f, fill=fill, anchor=anchor)
+
+    def spaced_text(self, x, y, s, f, fill, anchor, track=0.22, stretch=1.15):
+        """Aurebesh: open the letter spacing and widen the glyphs a little so it reads
+        like a real script instead of a squashed row."""
+        size = f.size
+        widths = [f.getlength(ch) for ch in s]
+        tw = sum(widths) + track * size * max(0, len(s) - 1)
+        tmp = Image.new("RGBA", (int(tw) + size, int(size * 1.6)), (0, 0, 0, 0))
+        td = ImageDraw.Draw(tmp)
+        cx = 0
+        for ch, w in zip(s, widths):
+            td.text((cx, size * 0.8), ch, font=f, fill=fill, anchor="lm")
+            cx += w + track * size
+        tmp = tmp.resize((int(tmp.width * stretch), tmp.height), Image.LANCZOS)
+        real_w = tw * stretch
+        px, py = x * S, y * S
+        if anchor[0] == "m":
+            px -= real_w / 2
+        elif anchor[0] == "r":
+            px -= real_w
+        py -= size * 0.8 if anchor[1] == "m" else size * 0.3
+        self.img.alpha_composite(tmp, (int(px), int(py)))
+        self.d = ImageDraw.Draw(self.img)
 
     def glow_rect(self, x0, y0, x1, y1, col, alpha=150, ring=False):
         if ring:   # halo around a lit key: outline only, so the label stays clean
-            self.g.rectangle(self.b(x0 - 3, y0 - 3, x1 + 3, y1 + 3), outline=hexrgb(col, alpha), width=7 * S)
+            self.g.rounded_rectangle(self.b(x0 - 3, y0 - 3, x1 + 3, y1 + 3), radius=10 * S,
+                                     outline=hexrgb(col, alpha), width=7 * S)
         else:
             self.g.rectangle(self.b(x0, y0, x1, y1), fill=hexrgb(col, alpha))
 
-    def vgrad(self, x0, y0, x1, y1, top, bottom):
-        for y in range(int(y0 * S), int(y1 * S)):
-            t = (y - y0 * S) / max(1, (y1 - y0) * S)
-            self.d.line([(x0 * S, y), (x1 * S, y)], fill=mix(top, bottom, t))
+    def vgrad(self, x0, y0, x1, y1, top, bottom, radius=0):
+        if radius == 0:
+            for y in range(int(y0 * S), int(y1 * S)):
+                t = (y - y0 * S) / max(1, (y1 - y0) * S)
+                self.d.line([(x0 * S, y), (x1 * S, y)], fill=mix(top, bottom, t))
+            return
+        w, h = int((x1 - x0) * S), int((y1 - y0) * S)
+        layer = Image.new("RGBA", (w, h))
+        ld = ImageDraw.Draw(layer)
+        for yy in range(h):
+            ld.line([(0, yy), (w, yy)], fill=mix(top, bottom, yy / max(1, h)))
+        m = Image.new("L", (w, h), 0)
+        ImageDraw.Draw(m).rounded_rectangle([0, 0, w - 1, h - 1], radius=radius * S, fill=255)
+        layer.putalpha(m)
+        self.img.alpha_composite(layer, (int(x0 * S), int(y0 * S)))
+        self.d = ImageDraw.Draw(self.img)
 
     def arc(self, cx, cy, r, a0, a1, col, width):
         self.d.arc(self.b(cx - r, cy - r, cx + r, cy + r), a0, a1, fill=col, width=width * S)
@@ -92,9 +130,12 @@ class Screen:
 
 
 # ---------------- components ----------------
+KEY_R, CAP_R = 9, 6     # corner radii: housing, cap (softened console hardware)
+
+
 def housing(sc, x, y, w, h):
-    sc.rect(x, y, x + w, y + h, fill="#121619", outline=FRAME, width=2)
-    for sx, sy in ((x + 5, y + 5), (x + w - 5, y + 5), (x + 5, y + h - 5), (x + w - 5, y + h - 5)):
+    sc.d.rounded_rectangle(sc.b(x, y, x + w, y + h), radius=KEY_R * S, fill="#121619", outline=FRAME, width=2 * S)
+    for sx, sy in ((x + 7, y + 7), (x + w - 7, y + 7), (x + 7, y + h - 7), (x + w - 7, y + h - 7)):
         sc.d.ellipse(sc.b(sx - 2, sy - 2, sx + 2, sy + 2), fill="#2A2F34")       # panel screws
 
 
@@ -105,13 +146,13 @@ def key(sc, x, y, w, h, label, accent=TEXT, lit=False, sub=None, big=False, pres
     cx0, cy0, cx1, cy1 = x + i, y + i + (2 if pressed else 0), x + w - i, y + h - i + (2 if pressed else 0)
     if lit:
         sc.glow_rect(cx0 - 2, cy0 - 2, cx1 + 2, cy1 + 2, accent, 190, ring=True)
-        sc.vgrad(cx0, cy0, cx1, cy1, mix(accent, "#FFFFFF", 0.25), mix(accent, "#000000", 0.25))
+        sc.vgrad(cx0, cy0, cx1, cy1, mix(accent, "#FFFFFF", 0.25), mix(accent, "#000000", 0.25), CAP_R)
         fg = "#FFF4F0"
     else:
-        sc.vgrad(cx0, cy0, cx1, cy1, "#353C43" if not pressed else "#23292E", "#1A1E22")
+        sc.vgrad(cx0, cy0, cx1, cy1, "#353C43" if not pressed else "#23292E", "#1A1E22", CAP_R)
         fg = accent
-    sc.line([(cx0, cy1), (cx0, cy0), (cx1, cy0)], mix(TEXT, "#000000", 0.35 if not lit else 0.0), 1)  # highlight
-    sc.line([(cx0, cy1), (cx1, cy1), (cx1, cy0)], "#050607", 2)                                      # shadow
+    sc.d.rounded_rectangle(sc.b(cx0, cy0, cx1, cy1), radius=CAP_R * S, outline="#050607", width=2 * S)  # shadow rim
+    sc.line([(cx0 + CAP_R, cy0 + 1), (cx1 - CAP_R, cy0 + 1)], mix(TEXT, "#000000", 0.35 if not lit else 0.0), 1)  # top highlight
     f = font(MONT, 30 if big else 17)
     ty = (cy0 + cy1) / 2 - (7 if sub else 0)
     sc.text((cx0 + cx1) / 2, ty, label, f, fg, "mm")
@@ -136,15 +177,15 @@ def guarded_toggle(sc, x, y, w, h, cover_open=False, label="LOCK"):
     layer = Image.new("RGBA", sc.img.size, (0, 0, 0, 0))
     ld = ImageDraw.Draw(layer)
     x0, y0, x1, y1 = [v * S for v in cov]
-    ld.rectangle([x0, y0, x1, y1], fill=hexrgb("#6E1015", 215))
+    ld.rounded_rectangle([x0, y0, x1, y1], radius=5 * S, fill=hexrgb("#6E1015", 215))
     for k in range(-int(y1 - y0), int(x1 - x0), 16 * S):          # hazard stripes
         ld.line([(x0 + k, y1), (x0 + k + (y1 - y0), y0)], fill=hexrgb("#1A0405", 230), width=6 * S)
     lm = Image.new("L", sc.img.size, 0)
-    ImageDraw.Draw(lm).rectangle([x0, y0, x1, y1], fill=255)
+    ImageDraw.Draw(lm).rounded_rectangle([x0, y0, x1, y1], radius=5 * S, fill=255)
     layer.putalpha(Image.composite(layer.getchannel("A"), Image.new("L", sc.img.size, 0), lm))
     sc.img.alpha_composite(layer)
     sc.d = ImageDraw.Draw(sc.img)
-    sc.rect(*cov, outline="#C4262E", width=2)
+    sc.d.rounded_rectangle(sc.b(*cov), radius=5 * S, outline="#C4262E", width=2 * S)
     sc.rect(cov[0] + 20, cov[1] - 3 + (0 if cover_open else 0), cov[2] - 20, cov[1] + 3, fill="#8A9095")  # hinge
     if not cover_open:
         sc.text((cov[0] + cov[2]) / 2, (cov[1] + cov[3]) / 2 + 4, "LOCK", font(MONT, 15), "#F0C8C8", "mm")
@@ -232,17 +273,29 @@ def voice_wave(n, seed, t=0):
     return out
 
 
-TICK_WORDS = ["SEC 7", "TK 421", "AUTH 9", "SCAN", "CH 04", "GRID 2", "LINK", "SYNC 3", "ENC A7"]
+# letters only: Aurebesh digits render as tiny marks; every word fits the 118 px column
+TICK_WORDS = ["SECTOR", "ACCESS", "SCANNER", "CHANNEL", "UPLINK", "CIPHER", "RELAY", "VECTOR",
+              "SIGNAL", "BEACON", "ORBIT", "PATROL", "DOCKING", "CLEARED", "ARMED", "COMLINK"]
 
 
-def ticker(sc, x, y, lines, f, col, t=0):
-    for i in range(lines):
-        w = TICK_WORDS[(i * 3 + t) % len(TICK_WORDS)] + " " + TICK_WORDS[(i * 5 + t + 2) % len(TICK_WORDS)]
-        sc.text(x, y + i * 18, w, f, col)
+class Ticker:
+    """Readout lines that hold still; every so often ONE line changes (not a scroll)."""
+    def __init__(self, lines, seed):
+        self.rnd = random.Random(seed)
+        self.lines = [self.rnd.choice(TICK_WORDS) for _ in range(lines)]
+
+    def step(self):
+        i = self.rnd.randrange(len(self.lines))
+        self.lines[i] = self.rnd.choice([w for w in TICK_WORDS if w not in self.lines])
+
+
+def ticker(sc, x, y, tk, f, col):
+    for i, w in enumerate(tk.lines):
+        sc.text(x, y + i * 22, w, f, col)
 
 
 # ---------------- screens ----------------
-def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=None, level=62):
+def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=None, level=62, tk=None):
     sc = Screen()
     sc.text(46, 30, "TK-421", font(AURENG, 26), RED, "lm")
     small_lamp(sc, 252, 22, "TX", level > 22)
@@ -250,7 +303,7 @@ def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=N
     scope(sc, 18, 62, 288, 176, BLUE, voice_wave(60, 3, t))
     seg_meter(sc, 306, 178, level)
     lamps(sc, 24, 196, lamp_states or ["blue", "grey", "orange", "grey", "red", "blue", "orange"], lamp_opas)
-    ticker(sc, 120, 200, 4, font(AUREB, 13), mix(AMBER, "#000000", 0.35), t // 3)
+    ticker(sc, 118, 198, tk or Ticker(4, 1), font(AUREB, 13), mix(AMBER, "#000000", 0.35))
     scomp(sc, 290, 244, 46, t / 8)
     guarded_toggle(sc, 16, 304, 104, 114, cover_open)
     key(sc, 132, 304, 104, 114, "SYS", BLUE, sub="SETTINGS")
@@ -269,7 +322,7 @@ def lock_screen():
     scope(sc, 18, 62, 288, 176, RED, voice_wave(60, 5))
     seg_meter(sc, 306, 178, 55)
     lamps(sc, 24, 196, ["red", "grey", "blue", "orange", "grey", "red", "blue"])
-    ticker(sc, 120, 200, 4, font(AUREB, 13), mix(AMBER, "#000000", 0.35), 4)
+    ticker(sc, 118, 198, Ticker(4, 9), font(AUREB, 13), mix(AMBER, "#000000", 0.35))
     scomp(sc, 290, 244, 46, 2.3)
     # control positions become read-only plates
     housing(sc, 16, 304, 104, 114)
@@ -309,7 +362,7 @@ def settings_screen(name="EFFECT", value=70, page=2, desc="DRIVE + BITCRUSH", un
     sc.text(176, 76, desc, font(MONT, 13), TEXT, "lm")
     for i in range(10):                                         # 10-seg bar
         sc.rect(176 + i * 17, 94, 189 + i * 17, 112, fill=AMBER if i < value // 10 else DIM)
-    ticker(sc, 176, 128, 2, font(AUREB, 12), mix(AMBER, "#000000", 0.45), 2)
+    ticker(sc, 176, 128, Ticker(2, 4), font(AUREB, 12), mix(AMBER, "#000000", 0.45))
     for i, c in enumerate(["blue", "red", "grey"]):   # small status lamps (drift like the main cluster)
         sc.rect(176 + i * 22, 168, 192 + i * 22, 176, fill=LAMP[c])
     notched_frame(sc, 16, 60, 352, 184)
@@ -330,9 +383,9 @@ def reset_screen(progress=0.6):
         sc.rect(46 + i * 14, 138, 56 + i * 14, 160, fill=RED if i < int(progress * 20) else DIM)
     notched_frame(sc, 16, 60, 352, 184)
     housing(sc, 16, 196, 336, 104)
-    sc.vgrad(30, 210, 338, 286, "#4A1014", "#1E0507")
+    sc.vgrad(30, 210, 338, 286, "#4A1014", "#1E0507", CAP_R)
     sc.glow_rect(30, 210, 338, 286, RED, 140, ring=True)
-    sc.line([(30, 286), (30, 210), (338, 210)], "#8A3A3E", 1)
+    sc.line([(30 + CAP_R, 211), (338 - CAP_R, 211)], "#8A3A3E", 1)
     sc.text(184, 240, "HOLD TO ERASE", font(MONT, 20), "#F0C8C8", "mm")
     sc.text(184, 266, f"ARMING {int(progress * 100)}%", font(MONT, 12), "#E09090", "mm")
     key(sc, 16, 312, 104, 104, "◀", BLUE, sub="PREV", big=True)
@@ -404,13 +457,16 @@ def main():
     rnd = random.Random(7)
     states = ["blue", "grey", "orange", "grey", "red", "blue", "orange"]
     frames = []
+    tk = Ticker(4, 1)
     for f in range(48):
+        if f % 14 == 13:          # one readout line changes about every 1.5 s
+            tk.step()
         if f % 12 == 11:
             j = rnd.randrange(7)
             states[j] = rnd.choice([c for c in LAMP if c != states[j]])
         opas = [(0.45 + 0.55 * abs(math.sin((f + i * 5) / 7.6))) if s == "red" else 1 for i, s in enumerate(states)]
         im = main_screen(live=f >= 24, t=f, lamp_states=list(states), lamp_opas=opas,
-                         level=int(40 + 35 * abs(math.sin(f / 5)))).finish()
+                         level=int(40 + 35 * abs(math.sin(f / 5))), tk=tk).finish()
         frames.append(im.resize((im.width // 2, im.height // 2), Image.LANCZOS))
     frames[0].save(os.path.join(out, "main_alive.gif"), save_all=True, append_images=frames[1:],
                    duration=110, loop=0)
