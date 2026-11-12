@@ -251,7 +251,10 @@ typedef struct {
     int narcs;
     float ang[3], spd[3], base[3];        /* rotor: three wandering angles */
     uint16_t rev_next[3];                 /* ticks until each ring reverses */
-    float s;                              /* smoothed level */
+    float s;                              /* smoothed level; rotors: trail side (+1 / -1, eased) */
+    lv_obj_t *blip[3];                    /* radar / reticle blips that drift inside the circle */
+    float bx[3], by[3], bh[3];            /* blip offset from the centre + heading (radians) */
+    int nblip;
     int shown;                            /* what is drawn now: redraw only on change */
     uint8_t hexv[32];
 } part_t;
@@ -1149,8 +1152,8 @@ static void rotor_draw(part_t *p)
         lv_arc_set_rotation(p->arcs[4], (int)p->ang[2]);
         lv_arc_set_rotation(p->arcs[5], (int)p->ang[2] + 180);
         break;
-    case ROTOR_RETICLE:
-        for (int k = 0; k < 3; k++) sweep_line(p, k, p->ang[0] - (3 - k) * 6, g[2]);
+    case ROTOR_RETICLE:                                    /* the trail always follows the arm */
+        for (int k = 0; k < 3; k++) sweep_line(p, k, p->ang[0] - (3 - k) * 6 * p->s, g[2]);
         sweep_line(p, 3, p->ang[0], g[2]);
         lv_arc_set_rotation(p->arcs[0], (int)p->ang[1]);
         break;
@@ -1164,10 +1167,13 @@ static void rotor_draw(part_t *p)
             lv_arc_set_rotation(p->arcs[s * 4 + 3], (int)(-sg * p->ang[1]));
         }
         break;
-    case ROTOR_RADAR:
-        lv_arc_set_rotation(p->arcs[0], (int)p->ang[0] - 40);
+    case ROTOR_RADAR: {                                    /* the wedge always trails the arm */
+        float sp = 40.0f * (p->s < 0 ? -p->s : p->s);
+        lv_arc_set_angles(p->arcs[0], 0, (int)sp);
+        lv_arc_set_rotation(p->arcs[0], p->s > 0 ? (int)(p->ang[0] - sp) : (int)p->ang[0]);
         sweep_line(p, 0, p->ang[0], g[2] - 2);
         break;
+    }
     case ROTOR_GEAR:
         rotor_gear_pts(p);
         lv_arc_set_rotation(p->arcs[0], (int)p->ang[1]);
@@ -1184,6 +1190,18 @@ static void make_rotor(console_t *c, part_t *p)
     lv_color_t light = lv_color_mix(lv_color_white(), fr, 26), dark = lv_color_mix(lv_color_black(), fr, 84);
     static const float BASE[6][3] = {{2, 4, 9}, {7, 2, 1}, {1, 2, 3}, {3, 6, 1}, {4, 1, 1}, {1, 3, 6}};
     int kind = p->d->style % 6;
+    if (kind == ROTOR_RADAR || kind == ROTOR_RETICLE) {   /* blips, under the sweep */
+        static const int8_t B[2][3][2] = {{{18, -14}, {-12, 22}, {-26, -8}}, {{14, -18}, {-22, 10}, {0, 0}}};
+        int set = kind == ROTOR_RADAR ? 0 : 1;
+        p->nblip = set ? 2 : 3;
+        for (int i = 0; i < p->nblip; i++) {
+            p->bx[i] = B[set][i][0] * r / 46.0f;
+            p->by[i] = B[set][i][1] * r / 46.0f;
+            p->bh[i] = (rnd() % 628) / 100.0f;
+            p->blip[i] = box(c->scr, x + (int)p->bx[i] - 3, y + (int)p->by[i] - 3, 6, 6, ac);
+            lv_obj_set_style_radius(p->blip[i], LV_RADIUS_CIRCLE, 0);
+        }
+    }
     switch (kind) {
     case ROTOR_SCOMP:
         for (int i = 0; i < 3; i++) p->arcs[p->narcs++] = ring(c->scr, x, y, r - 4, 8, 80, light);
@@ -1229,7 +1247,26 @@ static void make_rotor(console_t *c, part_t *p)
         p->ang[i] = i * 90;
         p->rev_next[i] = 160 + rnd() % 161;                /* 8-16 s */
     }
+    p->s = 1;
     rotor_draw(p);
+}
+
+/* blips wander slowly (about 1 px/s) and stay inside the circle */
+static void blips_drift(part_t *p)
+{
+    const int16_t *g = p->d->g;
+    float lim = g[2] * 0.75f;
+    for (int i = 0; i < p->nblip; i++) {
+        p->bh[i] += ((int)(rnd() % 21) - 10) * 0.02f;     /* heading wanders */
+        float nx = p->bx[i] + 0.05f * cosf(p->bh[i]), ny = p->by[i] + 0.05f * sinf(p->bh[i]);
+        if (nx * nx + ny * ny > lim * lim) {               /* at the edge: turn back inwards */
+            p->bh[i] = (float)atan2(-p->by[i], -p->bx[i]) + ((int)(rnd() % 101) - 50) * 0.01f;
+            continue;
+        }
+        p->bx[i] = nx; p->by[i] = ny;
+        int px = g[0] + (int)floorf(nx + 0.5f) - 3, py = g[1] + (int)floorf(ny + 0.5f) - 3;
+        if (px != lv_obj_get_x(p->blip[i]) || py != lv_obj_get_y(p->blip[i])) lv_obj_set_pos(p->blip[i], px, py);
+    }
 }
 
 static void console_build(console_t *c, lv_color_t trace)
@@ -2145,6 +2182,8 @@ static void ring_cb(lv_timer_t *t)
             while (p->ang[r] >= 360) p->ang[r] -= 360;
             while (p->ang[r] < 0) p->ang[r] += 360;
         }
+        p->s += ((p->spd[0] >= 0 ? 1.0f : -1.0f) - p->s) * 0.25f;   /* trail swings to the new side */
+        blips_drift(p);
         rotor_draw(p);
     }
     if (lv_scr_act() == scr_settings) {

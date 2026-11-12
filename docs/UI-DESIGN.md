@@ -141,6 +141,9 @@ hex table, temp tag. Rules:
 - **The secret temperature lives in exactly one place per skin**: readout line 1, a gauge
   plate, a tag (plain digits, "RNG 88", "CH 88"), a rotor hub, or a hex cell (in hex: 88 F
   reads 58). It follows the TEMP on/off and F/C settings like the readout version.
+  A temp tag is subtle but never touches other art or a trace's path: at least 4 px clear.
+- **Radar / reticle blips drift** slowly (about 1 px/s) and stay inside their circle; a
+  sweep's fading trail (or radar wedge) always trails the arm and swings over when it reverses.
 
 ## 6. Motion
 

@@ -69,6 +69,11 @@ for (const l of lines) {
     case 'battery': sim.exports.sim_set_battery?.(n[0]); step(100); break;
     case 'temp': sim.exports.sim_set_temp?.(n[0]); step(800); break;
     case 'tilt': sim.exports.sim_set_tilt?.(n[0], n[1]); step(600); break;
+    case 'waitrev': {   // step until the first main-screen ring reverses (max 30 s), then a further n ms
+      const sg = Math.sign(sim.exports.ui_dbg_ring_spd(0));
+      for (let t = 0; t < 30000 && Math.sign(sim.exports.ui_dbg_ring_spd(0)) === sg; t += 50) step(50);
+      step(n[0] || 0); break;
+    }
     case 'shot': png(path.join(outDir, a[0] + '.png')); console.log('shot', a[0], 'lvgl heap used', sim.memUsed(), 'B'); break;
     default: throw new Error('unknown command: ' + l);
   }

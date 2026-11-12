@@ -314,13 +314,13 @@ CONCEPTS2 = [
     dict(name="Forest Scout", pal="forest", keys="flat", note="tall scope + bar graph; temp as the graph tag", parts=[
         ["vscope", "notched", 0, 18, 62, 110, 298],
         ["bars", 0, 0, 132, 62, 350, 176, 14],
-        ["temp", 0, 1, 346, 185, 1, T(11)],
+        ["temp", 0, 1, 346, 191, 1, T(11)],
         ["batt", "v", 0, 119, 62, 298, 4],
         ["lamps", "matrix", 0, 184, 250],
         ["rotor", "radar", 0, 300, 250, 44]]),
-    dict(name="Dark Ops", pal="darkops", keys="flat", note="teal on black waterfall; temp as the channel tag", parts=[
+    dict(name="Dark Ops", pal="darkops", keys="flat", note="teal on black waterfall; temp under the twin rotors", parts=[
         ["waterfall", 0, 0, 18, 62, 350, 196, 9],
-        ["temp", 0, 1, 24, 69, 2, T(11)],
+        ["temp", 0, 1, 300, 309, 0, T(11)],
         ["batt", "h", 0, 18, 350, 206, 4],
         ["lamps", "switcher", 0, 68, 262, 6, 4],
         ["readout", 0, 0, 184, 262, 3, 24],
@@ -336,7 +336,7 @@ CONCEPTS2 = [
         ["rotor", "reticle", 0, 300, 268, 36]]),
     dict(name="Target Lock", pal="targeting", keys="flat", note="locking target view; temp as the range reading", parts=[
         ["target", 0, 0, 18, 62, 350, 192],
-        ["temp", 1, 1, 24, 184, 2, T(11)],
+        ["temp", 1, 1, 40, 72, 2, T(11)],
         ["batt", "h", 0, 18, 350, 202, 4],
         ["lamps", "domes", 0, 68, 262, 3, 2, 11],
         ["meter", "arc", 0, 184, 286, 40],
@@ -354,7 +354,7 @@ CONCEPTS2 = [
         ["edge", 0, 0, 340, 66, 226, 8],
         ["ring", 0, 0, 184, 146, 86, 32, 7],
         ["rotor", "scomp", 0, 184, 146, 70],
-        ["temp", 0, 1, 184, 178, 0, T(12)],
+        ["temp", 0, 1, 184, 164, 0, T(12)],
         ["batt", "v", 0, 36, 66, 226, 4],
         ["lamps", "pills", 0, 68, 268],
         ["readout", 0, 0, 184, 276, 2, 24],
@@ -369,15 +369,15 @@ CONCEPTS2 = [
         ["rotor", "radar", 0, 300, 262, 44]]),
     dict(name="Night Watch", pal="night", keys="ring", note="tall centre scope, lamp bank, dot meter", parts=[
         ["vscope", "brackets", 0, 140, 60, 228, 300],
-        ["temp", 0, 1, 184, 66, 0, T(11)],
+        ["temp", 0, 1, 68, 242, 0, T(11)],
         ["lamps", "switcher", 0, 68, 180, 6, 8],
         ["meter", "dots", 0, 300, 60, 300, 16],
         ["batt", "v", 0, 330, 60, 300, 6],
         ["rotor", "square", 0, 68, 278, 26]]),
     dict(name="Command Deck", pal="command", keys="bevel", note="stacked twin scopes; temp as a channel tag", parts=[
-        ["scope", "notched", 0, 18, 62, 288, 116],
-        ["scope", "notched", 0, 18, 126, 288, 180],
-        ["temp", 2, 1, 282, 135, 1, T(10)],
+        ["scope", "notched", 0, 18, 62, 288, 112],
+        ["scope", "notched", 0, 18, 122, 288, 170],
+        ["temp", 2, 1, 288, 183, 1, T(10)],
         ["meter", "vseg", 0, 306, 49, 178, 36, 12],
         ["batt", "v", 0, 348, 49, 178, 6],
         ["lamps", "grid", 0, 68, 250],
@@ -398,7 +398,7 @@ CONCEPTS2 = [
         ["lamps", "switcher", 0, 68, 262, 6, 4],
         ["hex", 1, 1, 158, 244, 2, 3, 38, 18],
         ["rotor", "scomp", 0, 300, 262, 40]]),
-    dict(name="Cold Steel", pal="steel", keys="ring", note="wide scope, voice-ringed rotor, temp in its hub", parts=[
+    dict(name="Cold Steel", pal="steel", keys="ring", note="wide scope, voice-ringed rotor, temp under the readout", parts=[
         ["edge", 0, 0, 18, 64, 168, 8],
         ["scope", "double", 0, 36, 62, 350, 168],
         ["batt", "h", 0, 36, 350, 180, 4],
@@ -406,7 +406,7 @@ CONCEPTS2 = [
         ["readout", 0, 0, 184, 258, 3, 26],
         ["ring", 0, 0, 300, 258, 46, 22, 6],
         ["rotor", "scomp", 0, 300, 258, 36],
-        ["temp", 0, 1, 300, 276, 0, T(10)]]),
+        ["temp", 0, 1, 184, 303, 0, T(10)]]),
     dict(name="Ember", pal="ember", keys="pill", note="big gauge + tall scope; temp on the gauge plate", parts=[
         ["gauge", 0, 1, 120, 168, 92],
         ["vscope", "double", 0, 248, 60, 350, 214],

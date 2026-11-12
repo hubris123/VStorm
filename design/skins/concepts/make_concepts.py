@@ -345,10 +345,11 @@ def rotor_reticle(sc, cx, cy, p, t, r=46):
         ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
         L = 8 if a % 45 == 0 else 4
         sc.line([(cx + r * ca, cy + r * sa), (cx + (r - L) * ca, cy + (r - L) * sa)], p["frame"], 1)
-    for dx, dy in ((14, -18), (-22, 10)):
-        sc.d.ellipse(sc.b(cx + dx - 3, cy + dy - 3, cx + dx + 3, cy + dy + 3), fill=p["accent"])
     if STATIC:
         return
+    for dx, dy in ((14, -18), (-22, 10)):                    # blips drift slowly (live)
+        dx, dy = dx * r / 46, dy * r / 46
+        sc.d.ellipse(sc.b(cx + dx - 3, cy + dy - 3, cx + dx + 3, cy + dy + 3), fill=p["accent"])
     a = math.radians(70 * t)
     for g in (3, 2, 1):                                      # fading sweep trail
         b = a - math.radians(g * 6)
@@ -399,10 +400,11 @@ def rotor_radar(sc, cx, cy, p, t, r=46):
     sc.d.ellipse(sc.b(cx - r, cy - r, cx + r, cy + r), fill="#05090A", outline=p["frame"], width=2 * S)
     for k in (0.33, 0.66):
         sc.d.ellipse(sc.b(cx - r * k, cy - r * k, cx + r * k, cy + r * k), outline=p["grid"], width=S)
-    for dx, dy in ((18, -14), (-12, 22), (-26, -8)):
-        sc.d.ellipse(sc.b(cx + dx - 3, cy + dy - 3, cx + dx + 3, cy + dy + 3), fill=p["accent"])
     if STATIC:
         return
+    for dx, dy in ((18, -14), (-12, 22), (-26, -8)):         # blips drift slowly (live)
+        dx, dy = dx * r / 46, dy * r / 46
+        sc.d.ellipse(sc.b(cx + dx - 3, cy + dy - 3, cx + dx + 3, cy + dy + 3), fill=p["accent"])
     a0 = 80 * t
     layer = Image.new("RGBA", sc.img.size, (0, 0, 0, 0))
     ImageDraw.Draw(layer).pieslice(sc.b(cx - r + 2, cy - r + 2, cx + r - 2, cy + r - 2), a0 - 40, a0,
