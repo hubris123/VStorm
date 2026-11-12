@@ -402,7 +402,7 @@ static void live_refresh(void)
 static void live_cb(lv_event_t *e) { audio_set_mute(!audio_is_muted()); live_refresh(); }
 static void sys_cb(lv_event_t *e) { open_settings(0); }
 
-/* lever + knob are children of the LOCK hit area at (16, 304); switch nut centre = (52, 63) local */
+/* lever + knob are children of the LOCK hit area at (16, 320); switch nut centre = (52, 63) local */
 static void lever_set(bool down)
 {
     if (down) { lv_obj_set_pos(lock_lever, 47, 63); lv_obj_set_pos(lock_knob, 45, 97); }
@@ -452,7 +452,7 @@ static void build_main(void)
     /* LOCK: guarded toggle (nut is in the skin) */
     lv_obj_t *hit = lv_obj_create(c->scr);                    /* touch area = whole housing */
     lv_obj_remove_style_all(hit);
-    lv_obj_set_pos(hit, 16, 304);
+    lv_obj_set_pos(hit, 16, 320);
     lv_obj_set_size(hit, 104, 114);
     lv_obj_add_flag(hit, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(hit, lock_tap_cb, LV_EVENT_CLICKED, NULL);
@@ -483,8 +483,8 @@ static void build_main(void)
     lv_obj_t *hinge = box(hit, 34, 5, 36, 6, C(0x8A9095));
     (void)hinge;
 
-    cap_sys = make_cap(c->scr, 132, 304, 104, 114, "SYS", "SETTINGS", COL_BLUE, false, sys_cb, LV_EVENT_CLICKED, NULL);
-    cap_live = make_cap(c->scr, 248, 304, 104, 114, "MUTED", "TAP FOR LIVE", COL_RED, false, live_cb, LV_EVENT_CLICKED, NULL);
+    cap_sys = make_cap(c->scr, 132, 320, 104, 114, "SYS", "SETTINGS", COL_BLUE, false, sys_cb, LV_EVENT_CLICKED, NULL);
+    cap_live = make_cap(c->scr, 248, 320, 104, 114, "MUTED", "TAP FOR LIVE", COL_RED, false, live_cb, LV_EVENT_CLICKED, NULL);
     live_refresh();
 }
 
@@ -522,12 +522,12 @@ static void build_lock(void)
     c->callsign = label(c->scr, S.callsign, &lv_font_montserrat_22, COL_RED);
     callsign_show(c);
     console_build(c, COL_RED);
-    lock_bar = box(c->scr, 52, 370, 32, 10, COL_RED);
+    lock_bar = box(c->scr, 52, 386, 32, 10, COL_RED);
     for (int i = 0; i < 2; i++) {
         lock_hex[i] = label(c->scr, "0000", &lv_font_montserrat_20, COL_AMBER);
-        center_at(lock_hex[i], 184, 362 + i * 24);
+        center_at(lock_hex[i], 184, 378 + i * 24);
     }
-    for (int i = 0; i < 5; i++) lock_sig[i] = box(c->scr, 264 + i * 15, 378, 10, 20, COL_GREEN);
+    for (int i = 0; i < 5; i++) lock_sig[i] = box(c->scr, 264 + i * 15, 394, 10, 20, COL_GREEN);
     /* every child passes taps through to the screen */
     for (uint32_t i = 0; i < lv_obj_get_child_cnt(c->scr); i++)
         lv_obj_clear_flag(lv_obj_get_child(c->scr, i), LV_OBJ_FLAG_CLICKABLE);
@@ -1013,7 +1013,7 @@ static void lamp_cb(lv_timer_t *t)
             for (int i = 0; i < 5; i++) {
                 int h = 12 + rnd() % 30;
                 lv_obj_set_height(lock_sig[i], h);
-                lv_obj_set_y(lock_sig[i], 398 - h);
+                lv_obj_set_y(lock_sig[i], 414 - h);
             }
         }
         int ph = tick % 20;

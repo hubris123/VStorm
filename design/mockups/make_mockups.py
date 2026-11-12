@@ -346,12 +346,12 @@ def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=N
     lamps(sc, 24, 196, lamp_states or ["blue", "grey", "orange", "grey", "red", "blue", "orange"], lamp_opas)
     ticker(sc, 118, 198, tk or Ticker(4, 1), font(AUREB, 13), mix(AMBER, "#000000", 0.35))
     scomp(sc, 290, 244, 46, t / 8, rot)
-    guarded_toggle(sc, 16, 304, 104, 114, cover_open)
-    key(sc, 132, 304, 104, 114, "SYS", BLUE, sub="SETTINGS")
+    guarded_toggle(sc, 16, 320, 104, 114, cover_open)
+    key(sc, 132, 320, 104, 114, "SYS", BLUE, sub="SETTINGS")
     if live:
-        key(sc, 248, 304, 104, 114, "LIVE", RED, lit=True, sub="TRANSMIT")
+        key(sc, 248, 320, 104, 114, "LIVE", RED, lit=True, sub="TRANSMIT")
     else:
-        key(sc, 248, 304, 104, 114, "MUTED", RED, sub="TAP FOR LIVE")
+        key(sc, 248, 320, 104, 114, "MUTED", RED, sub="TAP FOR LIVE")
     return sc
 
 
@@ -363,8 +363,8 @@ MAIN_LIVE = [
     ("scope trace", 19, 63, 287, 175), ("scope frame (keyed colour)", 13, 57, 293, 181),
     ("level meter", 305, 44, 343, 179), ("lamp cluster", 23, 195, 105, 291),
     ("readout text", 116, 192, 238, 290), ("Scomp rings", 245, 199, 335, 289),
-    ("lock cover + switch", 28, 310, 108, 404), ("SYS cap", 142, 314, 226, 408),
-    ("LIVE/MUTED cap", 258, 314, 342, 408),
+    ("lock cover + switch", 28, 326, 108, 420), ("SYS cap", 142, 330, 226, 424),
+    ("LIVE/MUTED cap", 258, 330, 342, 424),
 ]
 
 
@@ -382,9 +382,9 @@ def main_background():
         sc.line([(290 + 47 * math.cos(a), 244 + 47 * math.sin(a)),
                  (290 + 51 * math.cos(a), 244 + 51 * math.sin(a))], "#2E3438", 1)
     for x in (16, 132, 248):                                # key housings with empty cap wells
-        housing(sc, x, 304, 104, 114)
-        sc.d.rounded_rectangle(sc.b(x + 11, 315, x + 93, 407), radius=CAP_R * S, fill="#07090B")
-    sc.text(68, 405, "LOCK", font(MONT, 13), LABEL, "mm")
+        housing(sc, x, 320, 104, 114)
+        sc.d.rounded_rectangle(sc.b(x + 11, 331, x + 93, 423), radius=CAP_R * S, fill="#07090B")
+    sc.text(68, 421, "LOCK", font(MONT, 13), LABEL, "mm")
     return sc
 
 
@@ -413,18 +413,18 @@ def lock_screen():
     ticker(sc, 118, 198, Ticker(4, 9), font(AUREB, 13), mix(AMBER, "#000000", 0.35))
     scomp(sc, 290, 244, 46, 2.3)
     # control positions become read-only plates
-    housing(sc, 16, 304, 104, 114)
-    sc.text(68, 345, "LOCKED", font(AUREB, 15), RED, "mm")
-    sc.rect(52, 370, 84, 380, fill=RED)
-    sc.glow_rect(52, 370, 84, 380, RED)
-    housing(sc, 132, 304, 104, 114)
-    sc.text(184, 340, "ENC", font(AUREB, 12), FRAME, "mm")
-    sc.text(184, 362, "49F2", font(MONT, 20), AMBER, "mm")
-    sc.text(184, 386, "24BC", font(MONT, 20), AMBER, "mm")
-    housing(sc, 248, 304, 104, 114)
+    housing(sc, 16, 320, 104, 114)
+    sc.text(68, 361, "LOCKED", font(AUREB, 15), RED, "mm")
+    sc.rect(52, 386, 84, 396, fill=RED)
+    sc.glow_rect(52, 386, 84, 396, RED)
+    housing(sc, 132, 320, 104, 114)
+    sc.text(184, 356, "ENC", font(AUREB, 12), FRAME, "mm")
+    sc.text(184, 378, "49F2", font(MONT, 20), AMBER, "mm")
+    sc.text(184, 402, "24BC", font(MONT, 20), AMBER, "mm")
+    housing(sc, 248, 320, 104, 114)
     for i, hgt in enumerate([18, 30, 24, 40, 34]):
-        sc.rect(264 + i * 15, 398 - hgt, 274 + i * 15, 398, fill=GREEN)
-    sc.text(300, 328, "SIG", font(AUREB, 12), FRAME, "mm")
+        sc.rect(264 + i * 15, 414 - hgt, 274 + i * 15, 414, fill=GREEN)
+    sc.text(300, 344, "SIG", font(AUREB, 12), FRAME, "mm")
     return sc
 
 

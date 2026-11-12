@@ -54,13 +54,13 @@ def main_bg():
     m.scope(sc, 18, 62, 288, 176, m.BLUE, [], trace=False, frame_col=None)
     meter_wells(sc)
     scomp_socket(sc)
-    m.housing(sc, 16, 304, 104, 114)                       # lock: housing + switch nut, no well
-    cx, cy = 68, 367
+    m.housing(sc, 16, 320, 104, 114)                       # lock: housing + switch nut, no well
+    cx, cy = 68, 383
     sc.d.ellipse(sc.b(cx - 20, cy - 20, cx + 20, cy + 20), fill="#2A3036", outline="#6A7177", width=2 * S)
     sc.d.ellipse(sc.b(cx - 11, cy - 11, cx + 11, cy + 11), fill="#151A1E", outline="#4C5358", width=S)
-    sc.text(68, 405, "LOCK", m.font(m.MONT, 13), m.LABEL, "mm")
-    wells(sc, 132, 304, 104, 114)
-    wells(sc, 248, 304, 104, 114)
+    sc.text(68, 421, "LOCK", m.font(m.MONT, 13), m.LABEL, "mm")
+    wells(sc, 132, 320, 104, 114)
+    wells(sc, 248, 320, 104, 114)
     return sc
 
 
@@ -72,10 +72,10 @@ def lock_bg():
     meter_wells(sc)
     scomp_socket(sc)
     for x in (16, 132, 248):
-        m.housing(sc, x, 304, 104, 114)
-    sc.text(68, 345, "LOCKED", m.font(m.AUREB, 15), m.RED, "mm")
-    sc.text(184, 330, "ENC", m.font(m.AUREB, 12), m.FRAME, "mm")
-    sc.text(300, 326, "SIG", m.font(m.AUREB, 12), m.FRAME, "mm")
+        m.housing(sc, x, 320, 104, 114)
+    sc.text(68, 361, "LOCKED", m.font(m.AUREB, 15), m.RED, "mm")
+    sc.text(184, 346, "ENC", m.font(m.AUREB, 12), m.FRAME, "mm")
+    sc.text(300, 342, "SIG", m.font(m.AUREB, 12), m.FRAME, "mm")
     return sc
 
 
