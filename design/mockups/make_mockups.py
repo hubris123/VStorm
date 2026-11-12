@@ -338,7 +338,7 @@ def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=N
         keyed = level > 22
     frame_col = (RED if live else AMBER) if keyed else "#8A8A8A"
     sc = Screen()
-    sc.text(46, 30, "TK-421", font(AURENG, 26), RED, "lm")
+    sc.text(46, 31, "TK-421", font(AURENG, 42), RED, "lm")
     small_lamp(sc, 252, 22, "TX", keyed and live)
     small_lamp(sc, 316, 22, "CLIP", False)
     scope(sc, 18, 62, 288, 176, BLUE, wave or voice_wave(60, 3, t), frame_col=frame_col)
@@ -404,7 +404,7 @@ def layers_view():
 
 def lock_screen():
     sc = Screen()
-    sc.text(46, 30, "TK-421", font(AURENG, 26), RED, "lm")
+    sc.text(46, 31, "TK-421", font(AURENG, 42), RED, "lm")
     small_lamp(sc, 252, 22, "TX", True, f=font(AUREB, 12))
     small_lamp(sc, 316, 22, "CLIP", False, f=font(AUREB, 12))
     scope(sc, 18, 62, 288, 176, RED, voice_wave(60, 5))

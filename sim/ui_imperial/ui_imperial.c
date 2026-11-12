@@ -34,7 +34,7 @@ static const uint32_t LAMP_HEX[4] = {0x979B9A, 0xBF5B16, 0xD00A1B, 0x459FC2}; /*
 #define SCR_W 368
 #define SCR_H 448
 
-static lv_font_t *f_aureb13, *f_aureb12, *f_aureng26, *f_aureng20, *f_aureng28;
+static lv_font_t *f_aureb13, *f_aureb12, *f_aureng26, *f_aureng20, *f_aureng28, *f_aureng42, *f_aureng34, *f_aureng22;
 static ui_settings_t S;
 
 /* ---------------- helpers ---------------- */
@@ -212,6 +212,26 @@ typedef struct {
 } console_t;
 
 static console_t con_main, con_lock;
+
+/* Callsign in the top bar: as big as fits. 42 px normally; long callsigns step down
+ * (34, 26, 22) so they never run into the TX / CLIP lamps (space x 46..222). */
+#define CS_MAX_W 176
+static void callsign_show(console_t *c)
+{
+    lv_font_t *opts[4] = {f_aureng42, f_aureng34, f_aureng26, f_aureng22};
+    const lv_font_t *f = &lv_font_montserrat_22;
+    for (int i = 0; i < 4; i++) {
+        if (!opts[i]) continue;
+        lv_point_t sz;
+        lv_txt_get_size(&sz, S.callsign, opts[i], 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        f = opts[i];
+        if (sz.x <= CS_MAX_W) break;
+    }
+    lv_obj_set_style_text_font(c->callsign, f, 0);
+    lv_label_set_text(c->callsign, S.callsign);
+    lv_obj_update_layout(c->callsign);
+    lv_obj_set_pos(c->callsign, 46, 31 - lv_obj_get_height(c->callsign) / 2);   /* centred in the top bar */
+}
 
 static void make_chart(console_t *c, lv_color_t trace)
 {
@@ -425,8 +445,8 @@ static void build_main(void)
 {
     console_t *c = &con_main;
     c->scr = make_screen(&skin_main, NULL);
-    c->callsign = label(c->scr, S.callsign, f_aureng26 ? f_aureng26 : &lv_font_montserrat_22, COL_RED);
-    lv_obj_set_pos(c->callsign, 46, 15);
+    c->callsign = label(c->scr, S.callsign, &lv_font_montserrat_22, COL_RED);
+    callsign_show(c);
     console_build(c, COL_BLUE);
 
     /* LOCK: guarded toggle (nut is in the skin) */
@@ -481,7 +501,7 @@ static void lock_screen_tap_cb(lv_event_t *e)
     lv_obj_set_style_text_color(lock_hex[0], COL_RED, 0);       /* blip */
     if (tap_idx >= 5 && now - tap_times[tap_idx % 5] <= 2500) {
         tap_idx = 0;
-        lv_label_set_text(con_main.callsign, S.callsign);
+        callsign_show(&con_main);
         lv_scr_load(con_main.scr);
     }
 }
@@ -489,7 +509,7 @@ static void lock_screen_tap_cb(lv_event_t *e)
 static void go_lock(void)
 {
     tap_idx = 0;
-    lv_label_set_text(con_lock.callsign, S.callsign);
+    callsign_show(&con_lock);
     lv_scr_load(con_lock.scr);
 }
 
@@ -499,8 +519,8 @@ static void build_lock(void)
     c->scr = make_screen(&skin_lock, NULL);
     lv_obj_add_flag(c->scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(c->scr, lock_screen_tap_cb, LV_EVENT_CLICKED, NULL);
-    c->callsign = label(c->scr, S.callsign, f_aureng26 ? f_aureng26 : &lv_font_montserrat_22, COL_RED);
-    lv_obj_set_pos(c->callsign, 46, 15);
+    c->callsign = label(c->scr, S.callsign, &lv_font_montserrat_22, COL_RED);
+    callsign_show(c);
     console_build(c, COL_RED);
     lock_bar = box(c->scr, 52, 370, 32, 10, COL_RED);
     for (int i = 0; i < 2; i++) {
@@ -639,7 +659,7 @@ static void nav_cb(lv_event_t *e)
 {
     int dir = (int)(intptr_t)lv_event_get_user_data(e);
     if (dir == 0) {
-        lv_label_set_text(con_main.callsign, S.callsign);
+        callsign_show(&con_main);
         lv_scr_load(con_main.scr);
         return;
     }
@@ -682,7 +702,7 @@ static void reset_tick(void)
         reset_held = false;
         ui_platform_defaults(&S);
         ui_platform_apply(&S);
-        lv_label_set_text(con_main.callsign, S.callsign);
+        callsign_show(&con_main);
         lv_scr_load(con_main.scr);
     }
 }
@@ -869,7 +889,7 @@ static void blank_tap_cb(lv_event_t *e)
     lv_obj_set_style_text_color(blank_lbl, COL_AMBER, 0);             /* acknowledge the tap */
     if (wake_idx >= 5 && now - wake_times[wake_idx % 5] <= 2500) {
         wake_idx = 0;
-        lv_label_set_text(con_main.callsign, S.callsign);
+        callsign_show(&con_main);
         lv_scr_load(con_main.scr);
     }
 }
@@ -1024,7 +1044,10 @@ void ui_init(void)
     f_aureb12 = lv_tiny_ttf_create_data(aurebesh_ttf_start, aurebesh_ttf_len, 13);
     f_aureng26 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 26);
     f_aureng20 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 20);
-    f_aureng28 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 30);
+    f_aureng28 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 40);   /* settings page */
+    f_aureng42 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 42);
+    f_aureng34 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 34);
+    f_aureng22 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 22);
 
     build_main();
     build_lock();
