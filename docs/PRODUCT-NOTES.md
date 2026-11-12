@@ -10,6 +10,24 @@ Collected decisions and to-dos that only matter for the shipping product, not th
 files must not be editable or forgeable by users, and paid skins should not be copyable to
 another unit.
 
+### Storage: skins live on the SD card, not in on-board flash
+
+- **On-board flash holds only:** the firmware, settings (NVS), and **one default skin** as a
+  fallback, so the device always boots to a working UI (no card, bad card, or bad file →
+  default skin + a short "NO SKIN CARD" / "UNVERIFIED SKIN" notice).
+- **Every other skin is a `.vskin` file on the SD card**, which ships in the box preloaded with
+  the 20 Imperial skins. New skins = copy a file onto the card. No on-board flash is used or
+  written for skins.
+- **Card speed doesn't matter at runtime.** A skin (≈100–300 KB compressed) is read once,
+  when selected or at boot, verified, decrypted and decompressed into PSRAM; all drawing then
+  comes from PSRAM. The card isn't touched again, so a cheap slow card is fine, and pulling
+  the card while running doesn't crash anything (the loaded skin stays until reboot).
+  SDMMC 4-bit on the S3 reads a skin in well under a second even on slow cards.
+- **Wear:** skins are only ever read (reads don't wear SD or flash). Nothing is written to
+  the card except by the user's PC.
+- The signature check doubles as a corruption check for flaky cards.
+- Enclosure: the SD slot should be reachable (or the card swappable) for users who buy skins.
+
 ### What protects what
 
 | Threat | Protection |
@@ -48,8 +66,8 @@ signature           Ed25519 over header + key blob + payload
 3. Unwrap the content key (product key, or the device key via the ESP32-S3 HMAC peripheral
    from an eFuse key that software can never read), decrypt, check the GCM tag.
 4. Decompress the backgrounds into PSRAM (8 MB; one skin ≈ 2 MB unpacked) and rebuild the UI.
-5. Optionally copy the verified pack into the internal skins partition so the card can be
-   removed. The settings page remembers the choice in (encrypted) NVS.
+5. The settings page remembers the chosen skin (by skin id) in (encrypted) NVS; at boot it is
+   loaded from the card again. If the card or file is missing, the default skin is used.
 
 ### Tools (PC side)
 
@@ -62,7 +80,8 @@ signature           Ed25519 over header + key blob + payload
 ### Production setup checklist
 
 - [ ] Flash size 16 MB in sdkconfig (firmware3 currently says 4 MB); partitions: factory app
-      (or two OTA slots), NVS (encrypted), skins partition ~8 MB.
+      (or two OTA slots), NVS (encrypted). No skins partition: skins live on the SD card;
+      only the default skin is built into the firmware.
 - [ ] SD card via SDMMC (Waveshare `04_SD_MMC` example has this board's pins).
 - [ ] Secure Boot v2 + Flash Encryption (release mode) + NVS encryption.
 - [ ] Per-device HMAC key burned into eFuse at the factory; record the device ID.
@@ -74,7 +93,7 @@ signature           Ed25519 over header + key blob + payload
 ### Related
 
 - Skin concepts: `design/skins/concepts/` (20 designs) and the default skin `design/skins/default/`.
-- Size check: 21 skins ≈ 2–6 MB compressed vs ~41 MB raw; fits in 16 MB flash with room for
-  SD-loaded and future downloaded skins.
+- Size check: 20 skins ≈ 2–6 MB compressed on the card (any card is plenty); one unpacked
+  skin ≈ 2 MB of the 8 MB PSRAM.
 - IP: no franchise names/logos/crest in shipped skins; Aurebesh only for free/personal packs
   (see `docs/UI-DESIGN.md` section 8 and HANDOFF).
