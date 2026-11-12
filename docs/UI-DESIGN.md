@@ -121,8 +121,9 @@ that is why the callsign screen becomes one-character-at-a-time.
 
 - Lamps: slow drift between colours (existing), red pulse ≈ 6 s.
 - Scomp link (spinning rings): outer 3-segment ring, inner rotor and blue tip each turn at
-  their own speed and **randomly change speed (1–3×) and direction** about every 10–15 s,
-  independently, never stopping (as `fake_knob_timer_cb` in firmware3).
+  their own speed and **reverse direction every 8–16 s (random interval, guaranteed
+  reversal) at a new random speed (1–3×)**, independently, never stopping. Use a decent
+  PRNG (xorshift32), not the low bits of an LCG.
 - Readouts: lines hold still; about every 1.5–3 s ONE line changes to a new word. No scrolling,
   no whole-block flicker. (Hex codes on the lock screen may change faster.)
 - Screen change: hard cut or a 120 ms horizontal wipe with a scan line. No fades.

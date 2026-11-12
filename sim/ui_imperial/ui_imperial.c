@@ -38,8 +38,15 @@ static lv_font_t *f_aureb13, *f_aureb12, *f_aureng26, *f_aureng20, *f_aureng28;
 static ui_settings_t S;
 
 /* ---------------- helpers ---------------- */
+/* xorshift32: every bit is usable (the old LCG's low bits repeated in short patterns,
+ * which made "random" ring reversals rare) */
 static uint32_t rng_state = 0x5EED1234;
-static uint32_t rnd(void) { rng_state = rng_state * 1664525u + 1013904223u; return rng_state >> 8; }
+static uint32_t rnd(void)
+{
+    uint32_t x = rng_state;
+    x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+    return rng_state = x;
+}
 
 static lv_img_dsc_t mk_skin(const uint8_t *px)
 {
@@ -201,6 +208,7 @@ typedef struct {
     int tick_next;
     lv_obj_t *ring_outer[3], *ring_inner, *ring_tip[2];
     float ang[3], spd[3];
+    uint16_t rev_next[3];                 /* ticks until each ring reverses */
 } console_t;
 
 static console_t con_main, con_lock;
@@ -332,6 +340,7 @@ static void make_scomp(console_t *c)
     c->ring_tip[1] = ring(c->scr, 290, 244, 16, 4, 60, COL_BLUE);
     c->ang[0] = 0; c->ang[1] = 90; c->ang[2] = 0;
     c->spd[0] = 2; c->spd[1] = -4; c->spd[2] = 9;       /* deg per 50 ms tick */
+    for (int r = 0; r < 3; r++) c->rev_next[r] = 160 + rnd() % 161;   /* 8-16 s */
 }
 
 static void console_build(console_t *c, lv_color_t trace)
@@ -928,9 +937,10 @@ static void ring_cb(lv_timer_t *t)
     if (c) {
         static const float base[3] = {2, 4, 9};
         for (int r = 0; r < 3; r++) {
-            if ((rnd() & 0xFF) == 0) {                                 /* ~every 13 s per ring */
-                float m = (float)(1 + rnd() % 3) * base[r] / 2.0f;
-                c->spd[r] = (rnd() & 1) ? m : -m;
+            if (--c->rev_next[r] == 0) {                               /* reverse every 8-16 s, */
+                float m = (float)(1 + rnd() % 3) * base[r] / 2.0f;     /* at a new random speed */
+                c->spd[r] = c->spd[r] > 0 ? -m : m;
+                c->rev_next[r] = 160 + rnd() % 161;
             }
             c->ang[r] += c->spd[r] * boost;
             while (c->ang[r] >= 360) c->ang[r] -= 360;
@@ -1002,6 +1012,7 @@ void ui_init(void)
     ui_platform_load(&S);
     ui_platform_apply(&S);
     rng_state ^= esp_random();
+    if (!rng_state) rng_state = 0x5EED1234;
 
     skin_main = mk_skin(skin_main_px);
     skin_lock = mk_skin(skin_lock_px);
@@ -1026,3 +1037,8 @@ void ui_init(void)
     lv_timer_create(lamp_cb, 100, NULL);
     lv_scr_load(con_main.scr);
 }
+
+#ifdef UI_SIM
+/* simulator-only probe for tests: current speed (deg/tick, sign = direction) of a main-screen ring */
+__attribute__((export_name("ui_dbg_ring_spd"))) float ui_dbg_ring_spd(int r) { return con_main.spd[r % 3]; }
+#endif
