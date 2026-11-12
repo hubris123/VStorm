@@ -15,6 +15,8 @@ typedef struct {
     bool shift_on;             /* voice shift active                */
     float pitch_ratio;         /* 1.0 = unchanged                   */
     float formant_ratio;       /* 1.0 = unchanged ("TONE")          */
+    float f0_ref;              /* wearer's learned pitch, Hz (0 = no range narrowing) */
+    float range;               /* pitch swings kept (1.0 = all, 0.7 = 30 % narrower)  */
 } voicefx_params_t;
 
 void voicefx_init(int rate_hz);

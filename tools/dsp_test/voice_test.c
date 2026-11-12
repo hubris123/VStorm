@@ -53,6 +53,8 @@ int main(int argc, char **argv)
     /* pass 2: shift */
     vshift_init(16000);
     vshift_set(true, pr, fr);
+    float range = argc >= 6 ? atof(argv[5]) : 0.7f;          /* pitch swings kept (VOICE_RANGE) */
+    vshift_set_range(r.f0, range);
     clock_t t0 = clock();
     for (int i = 0; i < n; i++) y[i] = vshift_process(x[i]);
     double cpu = (double)(clock() - t0) / CLOCKS_PER_SEC;

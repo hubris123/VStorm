@@ -22,6 +22,10 @@ extern const vs_target_t VS_TROOPER;
 void vshift_init(int rate_hz);
 /* on = false: straight through, no delay */
 void vshift_set(bool on, float pitch_ratio, float formant_ratio);
+/* narrow the wearer's pitch swings around their learned pitch f0_ref (Hz): range 1.0 = keep
+ * the natural swings, 0.7 = swings 30 % smaller (stays inside the target band, still lively).
+ * f0_ref 0 = off. */
+void vshift_set_range(float f0_ref, float range);
 float vshift_process(float x);              /* one sample in (-1..1) -> one sample out */
 
 /* live readouts (for the UI) */

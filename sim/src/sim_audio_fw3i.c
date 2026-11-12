@@ -19,7 +19,7 @@ static volatile bool s_clip;
 static volatile bool s_muted = true;       /* boots muted, as firmware3 */
 static bool s_monitor;                     /* hear the output while muted (VOICE learn / adjust) */
 static int s_volume = 55, s_brightness = 55;
-static voicefx_params_t s_fx = {70, 22, 15, 60, false, 1.0f, 1.0f};
+static voicefx_params_t s_fx = {70, 22, 15, 60, false, 1.0f, 1.0f, 0.0f, 1.0f};
 
 int  audio_get_level(void) { return s_level; }
 bool audio_get_clip(void)  { bool c = s_clip; s_clip = false; return c; }

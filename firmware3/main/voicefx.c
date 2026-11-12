@@ -17,7 +17,7 @@
 #endif
 
 static int s_rate = 16000;
-static voicefx_params_t P = {70, 22, 15, 60, false, 1.0f, 1.0f};
+static voicefx_params_t P = {70, 22, 15, 60, false, 1.0f, 1.0f, 0.0f, 1.0f};
 
 typedef struct { float b0, b1, b2, a1, a2, z1, z2; } biquad_t;
 static biquad_t s_hpf, s_lpf;
@@ -81,6 +81,7 @@ void voicefx_set(const voicefx_params_t *p)
 {
     P = *p;
     vshift_set(P.shift_on, P.pitch_ratio, P.formant_ratio);
+    vshift_set_range(P.f0_ref, P.range);
 }
 
 bool voicefx_keyed(void) { return s_vox != VOX_IDLE || keysnd_active(); }

@@ -36,6 +36,7 @@ static float IN[N], LPB[N], OUT[N];
 static uint32_t ni;                   /* input samples written */
 static bool s_on;
 static float s_pr = 1.0f, s_fr = 1.0f;            /* pitch ratio, formant ratio */
+static float s_ref = 0.0f, s_range = 1.0f;        /* pitch-swing narrowing around the learned pitch */
 static float s_T = UNV_T;                         /* current period (samples) */
 static bool s_voiced;
 static float s_live_f0;
@@ -87,10 +88,10 @@ static float hist_median(const uint16_t *h, int nb, uint32_t *count)
     for (int i = 0; i < nb; i++) tot += h[i];
     *count = tot;
     if (!tot) return -1;
-    uint32_t half = tot / 2, acc = 0;
-    for (int i = 0; i < nb; i++) {
+    float half = tot * 0.5f, acc = 0;
+    for (int i = 0; i < nb; i++) {                               /* interpolated inside the bin */
+        if (h[i] && acc + h[i] >= half) return i + (half - acc) / h[i];
         acc += h[i];
-        if (acc > half) return i + 0.5f;
     }
     return nb - 0.5f;
 }
@@ -277,7 +278,14 @@ static void place_grain(void)
         float w = g * (0.5f + 0.5f * cosf((float)M_PI * j / (half_out + 1)));
         OUT[(c + j) & M] += w * in_at((double)a + j * s_fr);
     }
-    sm += s_voiced ? T / s_pr : T;
+    float pr = s_pr;
+    if (s_voiced && s_ref > 0 && s_range < 0.999f) {              /* pull swings toward the centre */
+        float k = powf((s_rate / T) / s_ref, s_range - 1.0f);
+        if (k < 0.7f) k = 0.7f;
+        if (k > 1.4f) k = 1.4f;
+        pr *= k;
+    }
+    sm += s_voiced ? T / pr : T;
 }
 
 /* ---------------- public ---------------- */
@@ -304,6 +312,12 @@ void vshift_set(bool on, float pitch_ratio, float formant_ratio)
 }
 
 float vshift_live_f0(void) { return s_live_f0; }
+
+void vshift_set_range(float f0_ref, float range)
+{
+    s_ref = f0_ref;
+    s_range = range < 0.3f ? 0.3f : range > 1.0f ? 1.0f : range;
+}
 
 float vshift_process(float x)
 {

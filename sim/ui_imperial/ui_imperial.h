@@ -43,7 +43,9 @@ bool ui_platform_temp(float *celsius);           /* board temperature - QMI8658 
 bool audio_is_keyed(void);                       /* VOX gate open (incl. hang/clicks) */
 /* VOICE page: try a shift live without saving (learn / adjust), and hear the output
  * through the speaker while LIVE is muted */
-void ui_platform_voice_live(bool on, float pitch_ratio, float formant_ratio);
+void ui_platform_voice_live(bool on, float pitch_ratio, float formant_ratio, float f0_ref);
+/* pitch swings kept by the voice shift around the wearer's learned pitch (1.0 = all) */
+#define VOICE_RANGE 0.7f
 void ui_platform_voice_monitor(bool on);
 
 /* skin (static background layer, RGB565 368x448) + fonts */

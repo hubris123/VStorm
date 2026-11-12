@@ -2031,7 +2031,7 @@ static const char *SCRIPT[] = {
     "Hold your fire until my signal.",
 };
 #define NSCRIPT (int)(sizeof(SCRIPT) / sizeof(SCRIPT[0]))
-#define LEARN_SECS 15
+#define LEARN_SECS 15                  /* segments in the lock-on bar (not seconds) */
 
 static int iround(float x) { return (int)floorf(x + 0.5f); }
 static const vs_target_t *voice_target(void) { return &VS_TROOPER; }
@@ -2055,7 +2055,7 @@ static void vmap_build(lv_obj_t *p, vmap_t *m, int y)
     m->y = y;
     box(p, 40, y - 3, 288, 6, C(0x1A1F24));
     const vs_target_t *t = voice_target();
-    int x0 = hz_x(t->f0 * 0.89f), x1 = hz_x(t->f0 * 1.12f);           /* +-2 semitones */
+    int x0 = hz_x(t->f0 * 0.944f), x1 = hz_x(t->f0 * 1.059f);         /* +-1 semitone */
     lv_obj_t *band = box(p, x0, y - 9, x1 - x0, 18, C(0x214C26));
     lv_obj_set_style_border_width(band, 1, 0);
     lv_obj_set_style_border_color(band, COL_GREEN, 0);
@@ -2198,6 +2198,10 @@ static vmap_t rd_map, rs_map;
 static cap_t vk[3];                         /* bottom keys, relabelled per state */
 static cap_t ak[3];                         /* adjust: - | SELECT | + */
 static int vs_state, rd_line_i, ad_sel, rd_spoken_ms, rd_quiet_ms;
+static int rd_nh, rd_sub;                  /* lock-on history count, 0.5 s sub-tick */
+#define LOCK_N 6                                 /* 6 x 0.5 s = the last 3 s */
+static float rd_hst[LOCK_N], rd_htn[LOCK_N];
+
 static uint32_t rd_t0, rd_paused_ms, rd_pause_t;
 static bool rd_paused;
 static float rd_you, v_pr = 1, v_fr = 1, l_pr = 1, l_fr = 1, l_f0;
@@ -2241,7 +2245,7 @@ static void adj_refresh(void)
     lv_label_set_text(ak[2].sub, nm);
     lv_label_set_text(ak[1].lbl, ad_sel ? "PITCH" : "TONE");
     for (int i = 0; i < 3; i++) cap_fit(&ak[i]);
-    ui_platform_voice_live(true, v_pr, v_fr);
+    ui_platform_voice_live(true, v_pr, v_fr, l_f0);
 }
 
 static void vs_show(int st)
@@ -2273,7 +2277,7 @@ static void vs_show(int st)
         fmt_shift(rs_tone, "TONE", iround((v_fr - 1.0f) * 1000), true);
         center_at(rs_tone, 268, 182);
         vmap_set(&rs_map, l_f0, l_f0 * v_pr);
-        ui_platform_voice_live(true, v_pr, v_fr);
+        ui_platform_voice_live(true, v_pr, v_fr, l_f0);
     } else {
         lv_label_set_text(vs_title, "ADJUST VOICE");
         vk_set(0, LV_SYMBOL_LEFT, "BACK", COL_BLUE, false);
@@ -2297,13 +2301,14 @@ static void rd_lines(void)
 static void voice_start_reading(void)
 {
     vlearn_start();
-    ui_platform_voice_live(false, 1, 1);            /* start from the raw voice */
+    ui_platform_voice_live(false, 1, 1, 0);         /* start from the raw voice */
     ui_platform_voice_monitor(true);                /* hear yourself, even while muted */
     rd_t0 = lv_tick_get();
     rd_paused = false;
     rd_paused_ms = 0;
     rd_line_i = 0;
     rd_spoken_ms = rd_quiet_ms = 0;
+    rd_nh = rd_sub = 0;
     rd_you = 0;
     v_pr = v_fr = 1;
     rd_lines();
@@ -2325,6 +2330,14 @@ static bool voice_finish(void)
     l_pr = v_pr = r.pitch_ratio;
     l_fr = v_fr = r.formant_ratio;
     l_f0 = r.f0;
+    int n = rd_nh < LOCK_N ? rd_nh : LOCK_N;
+    if (n >= 3) {                                    /* average the last 3 s: lands closer */
+        float st = 0, tn = 0;
+        for (int i = 0; i < n; i++) { st += rd_hst[i]; tn += rd_htn[i]; }
+        l_f0 = powf(2.0f, st / n / 12.0f);
+        l_pr = v_pr = voice_target()->f0 / l_f0;
+        l_fr = v_fr = tn / n;
+    }
     vs_show(VS_RESULT);
     return true;
 }
@@ -2381,16 +2394,37 @@ static void ak_cb(lv_event_t *e)
 }
 
 /* 100 ms while the learn screen is up: script, timer, live map, live shift */
+/* Learning has no fixed reading time: it listens until its measurement stops moving.
+ * Every 0.5 s the estimate (pitch in semitones, tone) goes into a short history; once there
+ * is enough speech and the last 3 s of estimates agree closely, it locks on and finishes. */
+
+static float lock_confidence(const vs_learn_t *r)
+{
+    if (rd_nh < 2) return 0;
+    int n = rd_nh < LOCK_N ? rd_nh : LOCK_N;
+    float s0 = 1e9f, s1 = -1e9f, t0 = 1e9f, t1 = -1e9f;
+    for (int i = 0; i < n; i++) {
+        if (rd_hst[i] < s0) s0 = rd_hst[i];
+        if (rd_hst[i] > s1) s1 = rd_hst[i];
+        if (rd_htn[i] < t0) t0 = rd_htn[i];
+        if (rd_htn[i] > t1) t1 = rd_htn[i];
+    }
+    /* enough speech (3 s voiced), a full history, and the last 3 s of estimates within
+     * 0.6 semitone (pitch: speech rises and falls by phrase, so the middle wobbles a little
+     * however long you listen) and 2 % (tone) */
+    float speech = r->seconds / 3.0f;
+    float hist = (float)n / LOCK_N;
+    float sp = (1.0f - (s1 - s0)) / 0.4f, st = (0.04f - (t1 - t0)) / 0.02f;
+    float steady = sp < st ? sp : st;
+    if (steady < 0) steady = 0;
+    if (steady > 1) steady = 1;
+    float c = (speech < 1 ? speech : 1) * 0.3f + hist * 0.2f + steady * 0.5f;
+    return c > 1 ? 1 : c;
+}
+
 static void voice_tick(void)
 {
     if (vs_state != VS_READ || rd_paused) return;
-    uint32_t ms = lv_tick_elaps(rd_t0) - rd_paused_ms;
-    int secs = (int)(ms / 1000);
-    lv_label_set_text_fmt(rd_time, "%d / %d S", secs > LEARN_SECS ? LEARN_SECS : secs, LEARN_SECS);
-    lv_obj_update_layout(rd_time);
-    lv_obj_set_x(rd_time, 336 - lv_obj_get_width(rd_time));
-    for (int i = 0; i < LEARN_SECS; i++)
-        lv_obj_set_style_bg_color(rd_prog[i], i < secs ? COL_AMBER : COL_DIM, 0);
     /* next line once this one has been read: some talking, then a pause (not on a clock,
      * and not mid-line: the short gaps between words are well under 0.5 s) */
     float f0 = vshift_live_f0();
@@ -2400,15 +2434,31 @@ static void voice_tick(void)
     if (rd_spoken_ms >= 800 && rd_quiet_ms >= 500) { rd_line_i++; rd_spoken_ms = 0; rd_lines(); }
     if (f0 > 0) rd_you = rd_you > 0 ? rd_you * 0.85f + f0 * 0.15f : f0;
     vs_learn_t r;
-    if (vlearn_result(voice_target(), &r) && r.seconds > 2.5f) {   /* shift builds up as it learns */
+    bool ok = vlearn_result(voice_target(), &r);
+    if (ok && r.seconds > 1.5f) {                                   /* shift builds up as it learns */
         v_pr = r.pitch_ratio;
         v_fr = r.formant_ratio;
-        ui_platform_voice_live(true, v_pr, v_fr);
+        ui_platform_voice_live(true, v_pr, v_fr, r.f0);
         vmap_set(&rd_map, rd_you > 0 ? rd_you : r.f0, (rd_you > 0 ? rd_you : r.f0) * v_pr);
     } else {
         vmap_set(&rd_map, rd_you, 0);
     }
-    if (secs >= LEARN_SECS && !voice_finish()) rd_t0 += 1000;   /* not enough yet: keep reading */
+    float conf = 0;
+    if (ok && talking && ++rd_sub >= 5) {                           /* every 0.5 s of talking */
+        rd_sub = 0;
+        for (int i = LOCK_N - 1; i > 0; i--) { rd_hst[i] = rd_hst[i - 1]; rd_htn[i] = rd_htn[i - 1]; }
+        rd_hst[0] = 12.0f * log2f(r.f0);
+        rd_htn[0] = r.formant_ratio;
+        rd_nh++;
+    }
+    if (ok) conf = lock_confidence(&r);
+    int pct = (int)(conf * 100 + 0.5f);
+    lv_label_set_text_fmt(rd_time, ok ? "LOCKING ON  %d %%" : "LISTENING", pct);
+    lv_obj_update_layout(rd_time);
+    lv_obj_set_x(rd_time, 336 - lv_obj_get_width(rd_time));
+    for (int i = 0; i < LEARN_SECS; i++)
+        lv_obj_set_style_bg_color(rd_prog[i], i < (int)(conf * LEARN_SECS + 0.5f) ? COL_AMBER : COL_DIM, 0);
+    if (conf >= 0.999f) voice_finish();                             /* locked on */
 }
 
 static void build_voice_screen(void)
