@@ -6,8 +6,10 @@ capcheck main_live
 tap 300 376
 tap 184 376
 capcheck p01_VOLUME
+shot p01_VOLUME
 tap 300 364
 capcheck p02_VOICE
+shot p02_VOICE
 tap 300 256
 signal 0.5 3000
 capcheck learn_reading
@@ -31,35 +33,47 @@ tap 68 376
 capcheck after_retry
 tap 68 376
 capcheck voice_page_again
-tap 300 256
-tap 300 376
-capcheck done_early
-tap 68 376
 tap 300 364
-capcheck p03_EFFECT
+capcheck p03_MIC
+shot p03_MIC
 tap 300 364
-capcheck p04_VOX
+capcheck p04_EFFECT
+shot p04_EFFECT
 tap 300 364
-capcheck p05_STATIC
+capcheck p05_SOFTCLIP
+shot p05_SOFTCLIP
 tap 300 364
-capcheck p06_CLICK
+capcheck p06_VOX
+shot p06_VOX
 tap 300 364
-capcheck p07_BRIGHT
+capcheck p07_STATIC
+shot p07_STATIC
 tap 300 364
-capcheck p08_CALLSIGN
+capcheck p08_CLICK
+shot p08_CLICK
+tap 300 364
+capcheck p09_BRIGHT
+shot p09_BRIGHT
+tap 300 364
+capcheck p10_CALLSIGN
+shot p10_CALLSIGN
 tap 184 248
 capcheck callsign_editor
 tap 184 364
 tap 68 364
 tap 300 364
 tap 300 364
-capcheck p09_RESET
+capcheck p11_RESET
+shot p11_RESET
 tap 300 364
-capcheck p10_DISPLAY
+capcheck p12_DISPLAY
+shot p12_DISPLAY
 tap 300 364
-capcheck p11_SENSORS
+capcheck p13_SENSORS
+shot p13_SENSORS
 tap 300 364
-capcheck p12_SKIN
+capcheck p14_SKIN
+shot p14_SKIN
 tap 300 364
 tap 184 364
 tap 184 376

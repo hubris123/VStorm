@@ -12,10 +12,12 @@ shot 04_cover_open
 tap 184 376         # SYS (cover closes itself later)
 shot 05_settings_volume
 tap 300 364         # NEXT -> VOICE
+tap 300 364         # NEXT -> MIC GAIN
 tap 300 364         # NEXT -> EFFECT
 tap 272 248         # + 
 tap 272 248
 shot 06_settings_effect
+tap 300 364         # SOFT CLIP
 tap 300 364
 tap 300 364
 tap 300 364

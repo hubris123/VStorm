@@ -36,6 +36,8 @@ void ui_platform_defaults(ui_settings_t *s)
     s->vox = 22;
     s->stat = 15;
     s->click = 60;
+    s->mic_gain = 12;    /* browser mics are quieter than the device's (device default 0) */
+    s->soft_clip = 50;
     s->brightness = 55;  /* SH8601 0x51 = 140 */
     s->show_batt = 1;
     s->show_tilt = 1;
@@ -60,7 +62,7 @@ void ui_platform_load(ui_settings_t *s)
 
 static voicefx_params_t fx_from(const ui_settings_t *s)
 {
-    voicefx_params_t p = {s->effect, s->vox, s->stat, s->click, false, 1.0f, 1.0f, 0.0f, 1.0f};
+    voicefx_params_t p = {s->effect, s->vox, s->stat, s->click, false, 1.0f, 1.0f, 0.0f, 1.0f, s->mic_gain, s->soft_clip};
     if (s->voice_auto && s->voice_learned) {
         p.shift_on = true;
         p.pitch_ratio = powf(2.0f, s->voice_st100 / 1200.0f);

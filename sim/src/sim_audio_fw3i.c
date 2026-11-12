@@ -8,6 +8,7 @@
 #include "voicefx.h"
 #include "esp_random.h"
 #include "sim_hal.h"
+#include <math.h>
 
 #define EXPORT(n) __attribute__((export_name(n)))
 #define IMPORT(n) __attribute__((import_module("env"), import_name(n)))
@@ -19,7 +20,8 @@ static volatile bool s_clip;
 static volatile bool s_muted = true;       /* boots muted, as firmware3 */
 static bool s_monitor;                     /* hear the output while muted (VOICE learn / adjust) */
 static int s_volume = 55, s_brightness = 55;
-static voicefx_params_t s_fx = {70, 22, 15, 60, false, 1.0f, 1.0f, 0.0f, 1.0f};
+static voicefx_params_t s_fx = {70, 22, 15, 60, false, 1.0f, 1.0f, 0.0f, 1.0f, 12, 50};
+static float s_level_gain = 3.98f;            /* MIC GAIN as a factor (+12 dB) */
 
 int  audio_get_level(void) { return s_level; }
 bool audio_get_clip(void)  { bool c = s_clip; s_clip = false; return c; }
@@ -33,6 +35,7 @@ void sim_audio_params(int volume, int brightness, const voicefx_params_t *fx)
     s_volume = volume;
     s_brightness = brightness;
     s_fx = *fx;
+    s_level_gain = powf(10.0f, fx->mic_gain / 20.0f);
     voicefx_set(&s_fx);
 }
 void sim_audio_monitor(bool on) { s_monitor = on; }
@@ -63,7 +66,8 @@ EXPORT("sim_audio_process") void sim_audio_process(int n)
         if (f > 1.0f) f = 1.0f;
         if (f < -1.0f) f = -1.0f;
         int32_t s = (int32_t)(f * 32767.0f);
-        int a = s < 0 ? -s : s;
+        int a = (int)((s < 0 ? -s : s) * s_level_gain);      /* meters show the boosted mic */
+        if (a > 32767) a = 32767;
         if (a > s_peak) s_peak = a;
         if (++s_peak_n >= s_block) {
             s_level = (s_peak * 100) >> 15;

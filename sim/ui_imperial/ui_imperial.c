@@ -1619,11 +1619,13 @@ static void build_lock(void)
 }
 
 /* ================= SETTINGS ================= */
-enum { P_VOLUME, P_VOICE, P_EFFECT, P_VOX, P_STATIC, P_CLICK, P_BRIGHT, P_CALLSIGN, P_RESET, P_DISPLAY, P_SENSORS, P_SKIN, NPAGES };
+enum { P_VOLUME, P_VOICE, P_MIC, P_EFFECT, P_SOFTCLIP, P_VOX, P_STATIC, P_CLICK, P_BRIGHT, P_CALLSIGN, P_RESET, P_DISPLAY, P_SENSORS, P_SKIN, NPAGES };
 static const struct { const char *title, *desc; int min, max; } PAGE[NPAGES] = {
     {"VOLUME", "SPEAKER LEVEL", 0, 100},
     {"VOICE", "", 0, 0},
+    {"MIC GAIN", "DB OF MIC BOOST", 0, 30},
     {"EFFECT", "DRIVE + BITCRUSH", 0, 100},
+    {"SOFT CLIP", "ROUNDS OFF PEAKS", 0, 100},
     {"VOX", "GATE OPENS AT", 0, 100},
     {"STATIC", "RADIO NOISE BED", 0, 100},
     {"CLICK", "KEY-UP CLICK", 0, 100},
@@ -1634,6 +1636,8 @@ static const struct { const char *title, *desc; int min, max; } PAGE[NPAGES] = {
     {"SENSORS", "", 0, 0},
     {"SKIN", "", 0, 0},
 };
+#define PIP_PITCH 19                 /* page pips: 14 pages, wells in the skin art */
+#define PIP_W 15
 static int page;
 static lv_obj_t *set_bg, *set_title, *set_count, *set_pip;
 static lv_obj_t *grp_value, *grp_cs, *grp_reset, *grp_disp, *grp_sens;   /* per-page content groups */
@@ -1656,6 +1660,8 @@ static int *page_val(int p)
     case P_VOX: return &S.vox;
     case P_STATIC: return &S.stat;
     case P_CLICK: return &S.click;
+    case P_MIC: return &S.mic_gain;
+    case P_SOFTCLIP: return &S.soft_clip;
     case P_BRIGHT: return &S.brightness;
     default: return NULL;
     }
@@ -1699,7 +1705,7 @@ static void page_show(void)
     lv_label_set_text_fmt(set_count, "%d/%d", page + 1, NPAGES);
     lv_obj_update_layout(set_count);
     lv_obj_set_pos(set_count, 322 - lv_obj_get_width(set_count), 19);
-    lv_obj_set_x(set_pip, 46 + page * 23);
+    lv_obj_set_x(set_pip, 46 + page * PIP_PITCH);
     bool three = (page == P_SENSORS), skinp = (page == P_SKIN), voicep = (page == P_VOICE);
     bool wide = (page == P_CALLSIGN || page == P_RESET || page == P_DISPLAY);
     voice_page_show(voicep);
@@ -2470,7 +2476,7 @@ static void build_voice_screen(void)
     lv_label_set_text_fmt(cnt, "%d/%d", P_VOICE + 1, NPAGES);
     lv_obj_update_layout(cnt);
     lv_obj_set_pos(cnt, 322 - lv_obj_get_width(cnt), 19);
-    box(scr_voice, 46 + P_VOICE * 23, 46, 18, 4, COL_AMBER);
+    box(scr_voice, 46 + P_VOICE * PIP_PITCH, 46, PIP_W, 4, COL_AMBER);
 
     /* reading */
     grp_read = group(scr_voice);
@@ -2535,7 +2541,7 @@ static void build_settings(void)
     set_title = label(scr_settings, "", &lv_font_montserrat_22, COL_TEXT);
     lv_obj_set_pos(set_title, 46, 15);
     set_count = label(scr_settings, "", &lv_font_montserrat_16, COL_LABEL);
-    set_pip = box(scr_settings, 46, 46, 18, 4, COL_AMBER);
+    set_pip = box(scr_settings, 46, 46, PIP_W, 4, COL_AMBER);
 
     /* value pages */
     grp_value = group(scr_settings);
@@ -2795,7 +2801,9 @@ static void fast_cb(lv_timer_t *t)
     if (raw >= shown_lvl) shown_lvl = raw;
     else shown_lvl -= (shown_lvl - raw) * 0.4f + 2.0f;
     if (shown_lvl < raw) shown_lvl = raw;
-    int lvl = (int)(shown_lvl + 0.5f);
+    float u = shown_lvl / 100.0f, knee = 1.0f - 0.6f * S.soft_clip / 100.0f;   /* SOFT CLIP: round the top */
+    if (u > knee && knee < 0.999f) u = knee + (1.0f - knee) * tanhf((u - knee) / (1.0f - knee));
+    int lvl = (int)(u * 100.0f + 0.5f);
     bool keyed = audio_is_keyed(), muted = audio_is_muted();
     hist_push(lvl);
     fast_ticks++;

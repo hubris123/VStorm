@@ -79,7 +79,7 @@ matrix), edge lamp strip, Aurebesh readout, rotor (Scomp, reticle, square bracke
 radar, cog), bar graph, ring meter, big gauge, hex table, temp tag. Parts can repeat (two
 scopes, two rotors). The UI code (`ui_imperial.c`) builds the live widgets from the list;
 the background art holds everything that never moves. Layout rules: `docs/UI-DESIGN.md` 5a.
-Settings page 12 (SKIN) switches between them. On the product the same recipes + art come
+Settings page 14 (SKIN) switches between them. On the product the same recipes + art come
 from signed `.vskin` files on the SD card (`docs/PRODUCT-NOTES.md`).
 
 To add a skin: add an entry to `CONCEPTS2` in `make_concepts2.py` (a part list), run it, rebuild.

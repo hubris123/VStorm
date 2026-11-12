@@ -130,9 +130,6 @@ footer code { font: 12px var(--mono); color: var(--ink); }
         </div>
         <input type="file" id="fileIn" accept="audio/*" hidden>
         <label class="chk"><input type="checkbox" id="monitor" checked> Play the effect through my speakers</label>
-        <div class="tune" id="micGainRow">
-          <label for="micGain">Mic gain</label><input type="range" id="micGain" min="0" max="30" value="12"><output id="oMicGain">+12 dB</output>
-        </div>
         <p class="note" id="srcNote">Demo voice is a synthetic buzz with pauses, so you can watch the VOX key up and down. It starts on its own, silently, so the scope and meters always move; click it to hear it. Use headphones with the microphone.</p>
         <p class="status" id="status" role="status"></p>
       </section>
@@ -361,17 +358,6 @@ $('tuneCopy').onclick = async () => {
 
 /* ---------- audio ---------- */
 let ac, proc, source = 'off', srcNode, micStream, fileBuf;
-/* browser mics are much quieter than the device's (ES8311 + 18 dB PGA): boost before the DSP */
-let micGain = Math.pow(10, 12 / 20);
-try { const g = +localStorage.getItem('vstorm.micgain'); if (g >= 0 && g <= 30 && localStorage.getItem('vstorm.micgain') !== null) { $('micGain').value = g; } } catch {}
-function micGainSet() {
-  const db = +$('micGain').value;
-  micGain = Math.pow(10, db / 20);
-  $('oMicGain').textContent = '+' + db + ' dB';
-  try { localStorage.setItem('vstorm.micgain', db); } catch {}
-}
-$('micGain').addEventListener('input', micGainSet);
-micGainSet();
 const status = (t) => { $('status').textContent = t; };
 async function ensureAudio() {
   if (ac) return;
@@ -386,7 +372,6 @@ async function ensureAudio() {
     else if (source === 'off') input = new Float32Array(out.length);
     else {
       input = ev.inputBuffer.getChannelData(0);
-      if (source === 'mic' && micGain !== 1) input = input.map(v => v * micGain);   /* stands in for the ES8311's mic gain */
     }
     const y = sim.audioProcess(input);
     if ($('monitor').checked && source !== 'off') out.set(y); else out.fill(0);
@@ -475,7 +460,7 @@ $('srcMic').onclick = async () => {
   disconnectSrc();
   try { srcNode = ac.createMediaStreamSource(micStream); }
   catch { status('This browser cannot mix the mic into a 16 kHz context. Try Chrome.'); return; }
-  srcNode.connect(proc); setSource('mic'); status('Microphone live. Tap LIVE on the screen to hear it (it starts MUTED). If the VOX lamp never says keyed when you talk, turn Mic gain up. Use headphones.');
+  srcNode.connect(proc); setSource('mic'); status('Microphone live. Tap LIVE on the screen to hear it (it starts MUTED). If the VOX lamp never says keyed when you talk, raise MIC GAIN (SYS, page 3). Use headphones.');
 };
 
 /* ---------- offline render to WAV (local runs only: hosted views can't save .wav) ---------- */

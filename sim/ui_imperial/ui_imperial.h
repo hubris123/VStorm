@@ -12,6 +12,8 @@ typedef struct {
     int vox;         /* 0..100 gate threshold  */
     int stat;        /* 0..100 static bed      */
     int click;       /* 0..100 key click level */
+    int mic_gain;    /* 0..30 dB extra mic boost (before everything) */
+    int soft_clip;   /* 0..100 how early / gently peaks are rounded off */
     int brightness;  /* 10..100 panel          */
     uint8_t show_batt;   /* battery bar beside the meter       */
     uint8_t show_tilt;   /* tilt crosshair lines in the scope  */

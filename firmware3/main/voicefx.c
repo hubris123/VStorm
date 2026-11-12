@@ -17,10 +17,11 @@
 #endif
 
 static int s_rate = 16000;
-static voicefx_params_t P = {70, 22, 15, 60, false, 1.0f, 1.0f, 0.0f, 1.0f};
+static voicefx_params_t P = {70, 22, 15, 60, false, 1.0f, 1.0f, 0.0f, 1.0f, 0, 50};
+static float s_gain = 1.0f, s_knee = 0.7f;
 
 typedef struct { float b0, b1, b2, a1, a2, z1, z2; } biquad_t;
-static biquad_t s_hpf, s_lpf;
+static biquad_t s_hpf, s_lpf, s_round;          /* s_round: smooths the clipped tops (SOFT CLIP) */
 
 static void biquad_set(biquad_t *q, float f0, bool highpass)
 {
@@ -54,14 +55,26 @@ static float s_env;
 static int s_hang;
 #define VOX_HANG (s_rate * 35 / 100)            /* 350 ms */
 
+/* SOFT CLIP: straight up to the knee, then a smooth curve that approaches full scale, so
+ * loud peaks are rounded instead of cut off square. knee 1.0 = plain hard clip. */
+static inline float soft_clip(float x)
+{
+    float a = x < 0 ? -x : x;
+    if (a <= s_knee) return x;
+    float y = s_knee >= 0.999f ? 1.0f : s_knee + (1.0f - s_knee) * tanhf((a - s_knee) / (1.0f - s_knee));
+    if (y > 1.0f) y = 1.0f;
+    return x < 0 ? -y : y;
+}
+
 static inline float radio(float x)
 {
     float fx = P.fx / 100.0f;
     x = biquad_run(&s_hpf, x);
     x = biquad_run(&s_lpf, x);
-    x *= 1.0f + 7.0f * fx;                      /* soft-clip drive 1x..8x */
-    if (x > 1.0f) x = 1.0f; else if (x < -1.0f) x = -1.0f;
-    x = x - (x * x * x) / 3.0f;
+    x *= 1.0f + 7.0f * fx;                      /* drive 1x..8x */
+    x = soft_clip(x);
+    x = x - (x * x * x) / 3.0f;                 /* radio saturation curve */
+    x = biquad_run(&s_round, x);                /* round the corners of clipped peaks */
     float steps = 256.0f - 192.0f * fx;          /* bitcrush 8-bit .. ~6-bit */
     return (int32_t)(x * steps) / steps;
 }
@@ -80,6 +93,11 @@ void voicefx_init(int rate_hz)
 void voicefx_set(const voicefx_params_t *p)
 {
     P = *p;
+    s_gain = powf(10.0f, P.mic_gain / 20.0f);
+    s_knee = 1.0f - 0.6f * P.soft_clip / 100.0f;                 /* 50 -> rounding starts at 70 % */
+    float fr = 5000.0f - 25.0f * P.soft_clip;                     /* 0 -> 5 kHz, 100 -> 2.5 kHz */
+    if (fr > s_rate * 0.45f) fr = s_rate * 0.45f;
+    biquad_set(&s_round, fr, false);
     vshift_set(P.shift_on, P.pitch_ratio, P.formant_ratio);
     vshift_set_range(P.f0_ref, P.range);
 }
@@ -88,7 +106,7 @@ bool voicefx_keyed(void) { return s_vox != VOX_IDLE || keysnd_active(); }
 
 int16_t voicefx_process(float x_q15, bool *clipped)
 {
-    float x = x_q15 / 32768.0f;
+    float x = soft_clip(x_q15 / 32768.0f * s_gain);   /* MIC GAIN, rounded instead of clipped */
     float v = vshift_process(x);                 /* shifted voice (32 ms late when on) */
 
     float a = fabsf(x);                          /* the gate listens to the raw mic */

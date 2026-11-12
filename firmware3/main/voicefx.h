@@ -17,6 +17,8 @@ typedef struct {
     float formant_ratio;       /* 1.0 = unchanged ("TONE")          */
     float f0_ref;              /* wearer's learned pitch, Hz (0 = no range narrowing) */
     float range;               /* pitch swings kept (1.0 = all, 0.7 = 30 % narrower)  */
+    int mic_gain;              /* 0..30 dB boost on the mic, before everything        */
+    int soft_clip;             /* 0..100: 0 = hard clip, higher = peaks rounded earlier and smoother */
 } voicefx_params_t;
 
 void voicefx_init(int rate_hz);
