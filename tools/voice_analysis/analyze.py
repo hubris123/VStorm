@@ -9,7 +9,9 @@ tools/voice_analysis/report.md, targets.json and spectrum.png.
 
 Method
 - decode to mono 16 kHz (the device rate) with ffmpeg
-- voiced frames: energy gate + YIN pitch (40 ms frames, 10 ms hop), 70-400 Hz
+- spoken lines found by loudness; the edges of each line are trimmed (radio key-up / key-down)
+- pitch from the harmonic spacing in 250-1500 Hz (64 ms frames, 10 ms hop): survives radio
+  filtering (no fundamental) and mains hum; steady tones (beeps) are dropped
 - pitch: median, 10th / 90th percentile, in Hz and as a semitone spread
 - formants F1-F3: LPC (order 12) on voiced frames, roots -> frequencies, median per formant
 - long-term average spectrum of voiced frames (the overall tone colour)
@@ -79,39 +81,122 @@ def formants(frame):
     return picked
 
 
+def lowband(x):
+    """60-1000 Hz: the fundamental and first harmonics, where pitch is easiest to see"""
+    h = np.sinc(2 * 1000 / SR * (np.arange(129) - 64)) * np.hamming(129)
+    y = np.convolve(x, h / h.sum(), "same")
+    return y - np.convolve(y, np.ones(160) / 160, "same")
+
+
+def spacing_pitch(frames, fmin=70, fmax=300, band=(250, 1500), nfft=4096):
+    """pitch from the spacing of the harmonics in the 250-1500 Hz band -> (Hz, clarity).
+    Radio-filtered voices have lost their fundamental, and film audio has mains hum below
+    ~400 Hz; the harmonic spacing in the speech band survives both."""
+    win = frames.shape[1]
+    X = np.abs(np.fft.rfft(frames * np.hanning(win), nfft, axis=1))
+    df = SR / nfft
+    lo, hi = int(band[0] / df), int(band[1] / df)
+    B = np.log1p(X[:, lo:hi] / (X[:, lo:hi].mean(axis=1, keepdims=True) + 1e-12))
+    k = int(150 / df)                                      # remove the slow envelope (formants)
+    B = B - np.apply_along_axis(lambda v: np.convolve(v, np.ones(k) / k, "same"), 1, B)
+    lmin, lmax = int(fmin / df), int(fmax / df) + 1
+    n = B.shape[1] - lmax
+    a = B[:, :n]
+    ea = np.sum(a * a, axis=1) + 1e-12
+    r = np.empty((len(B), lmax - lmin))
+    for j, t in enumerate(range(lmin, lmax)):
+        bb = B[:, t:t + n]
+        r[:, j] = np.sum(a * bb, axis=1) / np.sqrt(ea * (np.sum(bb * bb, axis=1) + 1e-12))
+    best = r.max(axis=1)
+    lag = np.empty(len(B))
+    for i in range(len(B)):                               # earliest strong peak = the true spacing
+        ri = r[i]
+        cand = np.where((ri[1:-1] > 0.8 * best[i]) & (ri[1:-1] >= ri[:-2]) & (ri[1:-1] >= ri[2:]))[0]
+        j = (1 + cand[0]) if len(cand) else int(np.argmax(ri))
+        if 0 < j < len(ri) - 1:                           # parabolic refinement
+            d = ri[j - 1] - 2 * ri[j] + ri[j + 1]
+            j = j + (0.5 * (ri[j - 1] - ri[j + 1]) / d if d else 0)
+        lag[i] = lmin + j
+    return lag * df, best
+
+
+def segments(e, hop_s=0.01, gap_s=0.15, trim_s=0.12, min_s=0.3):
+    """spoken lines: runs of loud frames (short gaps merged), with the edges trimmed off so
+    radio key-up / key-down clicks and beeps at the start and end of a line are left out"""
+    on = np.where(e)[0]
+    if not len(on):
+        return []
+    runs, s0, prev = [], on[0], on[0]
+    for i in on[1:]:
+        if i - prev > gap_s / hop_s:
+            runs.append((s0, prev)); s0 = i
+        prev = i
+    runs.append((s0, prev))
+    t = int(trim_s / hop_s)
+    return [(a + t, b - t) for a, b in runs if (b - a) * hop_s >= min_s + 2 * trim_s]
+
+
 def analyse(folder):
     files = sorted(os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith(EXTS))
-    pitches, fms, spec, secs = [], [[], [], []], np.zeros(513), 0.0
+    pitches, fms, spec, secs, nlines, ntone = [], [[], [], []], np.zeros(513), 0.0, 0, 0
+    win, hop = int(0.04 * SR), int(0.01 * SR)
     for path in files:
         x = load(path)
         secs += len(x) / SR
         x = x / (np.max(np.abs(x)) + 1e-9)
-        win, hop = int(0.04 * SR), int(0.01 * SR)
-        energies = [np.sqrt(np.mean(x[i:i + win] ** 2)) for i in range(0, len(x) - win, hop)]
-        gate = max(np.percentile(energies, 60) * 0.5, 1e-3) if energies else 1
-        for k, i in enumerate(range(0, len(x) - win, hop)):
-            fr = x[i:i + win]
-            if energies[k] < gate:
-                continue
-            p = yin(fr)
-            if not p:
-                continue
-            pitches.append(p)
+        idx = np.arange(0, len(x) - win, hop)
+        frames = np.stack([x[i:i + win] for i in idx])
+        e = np.sqrt(np.mean(frames ** 2, axis=1))
+        loud = e > max(np.percentile(e, 95) * 0.12, 1e-3)      # within ~18 dB of the loud parts
+        lines = segments(loud)
+        nlines += len(lines)
+        keep = np.zeros(len(idx), bool)
+        for a, b in lines:
+            keep[a:b + 1] = True
+        keep &= loud
+        f0, clar = spacing_pitch(np.stack([x[i:i + 1024] for i in idx if i + 1024 <= len(x)]))
+        f0 = np.resize(f0, len(idx)); clar = np.resize(clar, len(idx))
+        voiced = keep & (clar > 0.35)
+        # beeps: a pitch held dead steady (< 0.5 % change over 80 ms) is a tone, not a voice
+        for k in range(len(f0) - 8):
+            seg = f0[k:k + 8]
+            if voiced[k:k + 8].all() and seg.max() / seg.min() < 1.005:
+                voiced[k:k + 8] = False
+                ntone += 1
+        for k in np.where(voiced)[0]:
+            pitches.append(f0[k])
+            fr = frames[k]
             for j, fq in enumerate(formants(fr[: int(0.025 * SR)])):
                 if fq:
                     fms[j].append(fq)
             spec += np.abs(np.fft.rfft(fr * np.hanning(win), 1024)) ** 2
+    name = os.path.basename(folder.rstrip("/"))
     if not pitches:
-        return dict(name=os.path.basename(folder.rstrip("/")), files=len(files), seconds=round(secs, 1), voiced_frames=0)
+        return dict(name=name, files=len(files), seconds=round(secs, 1), voiced_frames=0)
     p = np.array(pitches)
+    # centre = the most common pitch (smoothed histogram, half-semitone bins)
+    st = 12 * np.log2(p / 100)
+    h, edges = np.histogram(st, bins=np.arange(-6, 24, 0.5))
+    h = np.convolve(h, [1, 2, 3, 2, 1], "same")
+    mode = 100 * 2 ** ((edges[np.argmax(h)] + 0.25) / 12)
+    # fold octave errors (about 2x or 1/2 the centre, +-2 semitones) back to the right octave
+    folded = 0
+    for k, v in enumerate(p):
+        d = 12 * math.log2(v / mode)
+        for oct_ in (12, -12, 19):
+            if abs(d - oct_) < 2:
+                p[k] = v / 2 ** (oct_ / 12)
+                folded += 1
+                break
     med = float(np.median(p))
     spread = float(12 * math.log2(np.percentile(p, 90) / np.percentile(p, 10)))
     ltas = 10 * np.log10(spec / spec.max() + 1e-12)
     hz = np.arange(len(spec)) * SR / 1024
     band = (hz >= 300) & (hz <= 3500)                              # the radio band: where tone lives
     centroid = float(np.sum(hz[band] * spec[band]) / np.sum(spec[band]))
-    return dict(name=os.path.basename(folder.rstrip("/")), files=len(files), seconds=round(secs, 1),
-                voiced_frames=len(p), pitch_median_hz=round(med, 1),
+    return dict(name=name, files=len(files), seconds=round(secs, 1), lines=nlines,
+                voiced_frames=len(p), beep_frames_dropped=ntone, octave_fixed=folded,
+                pitch_centre_hz=round(float(mode), 1), pitch_median_hz=round(med, 1),
                 pitch_p10_hz=round(float(np.percentile(p, 10)), 1), pitch_p90_hz=round(float(np.percentile(p, 90)), 1),
                 pitch_spread_semitones=round(spread, 1),
                 tone_centroid_hz=round(centroid, 0),
@@ -150,14 +235,14 @@ def main():
     results = [analyse(a) for a in sys.argv[1:]]
     with open(os.path.join(HERE, "targets.json"), "w") as fh:
         json.dump(results, fh, indent=1)
-    lines = ["# Voice targets (measured)", "", "| target | clips | voiced s | pitch median | 10-90 % range | spread | tone centroid | F1 | F2 | F3 |",
-             "|---|---|---|---|---|---|---|---|---|---|"]
+    lines = ["# Voice targets (measured)", "", "| target | lines | voiced s | pitch centre | median | 10-90 % range | spread | tone centroid | F1 | F2 | F3 |",
+             "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in results:
         if not r.get("voiced_frames"):
-            lines.append(f"| {r['name']} | {r['files']} | 0 | - | - | - | - | - | - | - |")
+            lines.append(f"| {r['name']} | 0 | 0 | - | - | - | - | - | - | - | - |")
             continue
         f1, f2, f3 = (r["formants_hz"] + [None] * 3)[:3]
-        lines.append(f"| {r['name']} | {r['files']} | {r['voiced_frames'] / 100:.1f} | {r['pitch_median_hz']} Hz | "
+        lines.append(f"| {r['name']} | {r['lines']} | {r['voiced_frames'] / 100:.1f} | {r['pitch_centre_hz']} Hz | {r['pitch_median_hz']} Hz | "
                      f"{r['pitch_p10_hz']}-{r['pitch_p90_hz']} Hz | {r['pitch_spread_semitones']} st | {r['tone_centroid_hz']} Hz | {f1} | {f2} | {f3} |")
     open(os.path.join(HERE, "report.md"), "w").write("\n".join(lines) + "\n")
     plot(results, os.path.join(HERE, "spectrum.png"))

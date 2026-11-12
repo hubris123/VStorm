@@ -10,3 +10,5 @@ managed_components/
 sdkconfig.old
 __pycache__/
 voice_refs/
+tools/voice_analysis/sfx_report.md
+tools/voice_analysis/sfx_sheet.png
