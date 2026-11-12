@@ -188,6 +188,9 @@ static cap_t make_cap(lv_obj_t *scr, int hx, int hy, int hw, int hh, const char 
 
 /* ================= console widgets shared by MAIN and LOCK ================= */
 #define METER_SEGS 12
+#define CLUSTER_Y 196     /* lamp cluster 196-304: even gaps to the scope frame and the keys */
+#define SCOMP_CY 250      /* Scomp link centred on the cluster */
+static const int LAMP_ROW[4] = {7, 36, 65, 94};
 #define LAMPS 7
 #define TICK_LINES 4
 
@@ -288,11 +291,12 @@ static uint16_t lamp_delay(bool busy)
 static void make_lamps(console_t *c)
 {
     static const struct { int x, y, w, h; bool dome; } L[LAMPS] = {
-        {0, 0, 80, 14, false}, {0, 22, 32, 14, false}, {42, 22, 28, 28, true},
-        {0, 44, 32, 14, false}, {42, 58, 32, 14, false}, {0, 66, 28, 28, true}, {42, 80, 32, 14, false},
+        /* 4-row grid, 29 px pitch, row centres 7/36/65/94 (readout lines sit on the same rows) */
+        {0, 0, 80, 14, false}, {0, 29, 32, 14, false}, {42, 22, 28, 28, true},
+        {0, 58, 32, 14, false}, {42, 58, 32, 14, false}, {0, 80, 28, 28, true}, {42, 87, 32, 14, false},
     };
     for (int i = 0; i < LAMPS; i++) {
-        lv_obj_t *o = box(c->scr, 24 + L[i].x, 196 + L[i].y, L[i].w, L[i].h, COL_PANEL);
+        lv_obj_t *o = box(c->scr, 24 + L[i].x, CLUSTER_Y + L[i].y, L[i].w, L[i].h, COL_PANEL);
         if (L[i].dome) {
             lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
             lv_obj_t *hl = box(o, 6, 5, 6, 5, lv_color_white());   /* dome highlight */
@@ -317,7 +321,8 @@ static void make_ticker(console_t *c)
     for (int i = 0; i < TICK_LINES; i++) {
         c->tick_word[i] = (i * 5 + (c == &con_lock ? 3 : 0)) % NWORDS;
         c->tick[i] = aureb_label(c->scr, WORDS[c->tick_word[i]], f_aureb13, COL_TICK);
-        lv_obj_set_pos(c->tick[i], 118, 190 + i * 22);
+        lv_obj_update_layout(c->tick[i]);                       /* centre on lamp row i */
+        lv_obj_set_pos(c->tick[i], 118, CLUSTER_Y + LAMP_ROW[i] - lv_obj_get_height(c->tick[i]) / 2);
     }
     c->tick_next = 8;
 }
@@ -354,10 +359,10 @@ static lv_obj_t *ring(lv_obj_t *p, int cx, int cy, int r, int w, int span, lv_co
 /* Scomp link: outer 3-segment ring, inner rotor, fast blue tip (socket + hub are in the skin) */
 static void make_scomp(console_t *c)
 {
-    for (int i = 0; i < 3; i++) c->ring_outer[i] = ring(c->scr, 290, 244, 42, 8, 80, C(0x8A9095));
-    c->ring_inner = ring(c->scr, 290, 244, 28, 7, 250, COL_FRAME);
-    c->ring_tip[0] = ring(c->scr, 290, 244, 16, 4, 60, COL_BLUE);
-    c->ring_tip[1] = ring(c->scr, 290, 244, 16, 4, 60, COL_BLUE);
+    for (int i = 0; i < 3; i++) c->ring_outer[i] = ring(c->scr, 290, SCOMP_CY, 42, 8, 80, C(0x8A9095));
+    c->ring_inner = ring(c->scr, 290, SCOMP_CY, 28, 7, 250, COL_FRAME);
+    c->ring_tip[0] = ring(c->scr, 290, SCOMP_CY, 16, 4, 60, COL_BLUE);
+    c->ring_tip[1] = ring(c->scr, 290, SCOMP_CY, 16, 4, 60, COL_BLUE);
     c->ang[0] = 0; c->ang[1] = 90; c->ang[2] = 0;
     c->spd[0] = 2; c->spd[1] = -4; c->spd[2] = 9;       /* deg per 50 ms tick */
     for (int r = 0; r < 3; r++) c->rev_next[r] = 160 + rnd() % 161;   /* 8-16 s */
