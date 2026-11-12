@@ -18,6 +18,7 @@ W, H, R, S = 368, 448, 45, 2
 BG, PANEL, FRAME, TEXT = "#000000", "#0C0F12", "#5C6166", "#C9CDD0"
 RED, GREEN, BLUE, AMBER = "#C4262E", "#3C8A44", "#459FC2", "#E0A526"
 DIM = "#3A3F44"
+LABEL = "#A9B0B5"      # secondary labels: light enough to read at arm's length
 LAMP = {"grey": "#979B9A", "orange": "#BF5B16", "red": "#D00A1B", "blue": "#459FC2"}
 
 
@@ -153,11 +154,34 @@ def key(sc, x, y, w, h, label, accent=TEXT, lit=False, sub=None, big=False, pres
         fg = accent
     sc.d.rounded_rectangle(sc.b(cx0, cy0, cx1, cy1), radius=CAP_R * S, outline="#050607", width=2 * S)  # shadow rim
     sc.line([(cx0 + CAP_R, cy0 + 1), (cx1 - CAP_R, cy0 + 1)], mix(TEXT, "#000000", 0.35 if not lit else 0.0), 1)  # top highlight
-    f = font(MONT, 30 if big else 17)
-    ty = (cy0 + cy1) / 2 - (7 if sub else 0)
-    sc.text((cx0 + cx1) / 2, ty, label, f, fg, "mm")
-    if sub:
-        sc.text((cx0 + cx1) / 2, ty + 20, sub, font(MONT, 10), fg if lit else FRAME, "mm")
+    f = font(MONT, 40 if big else 18)
+    ty = (cy0 + cy1) / 2 - ((13 if big else 10) if sub else 0)
+    if label in SYMBOLS:
+        symbol(sc, (cx0 + cx1) / 2, ty, label, fg)
+    else:
+        sc.text((cx0 + cx1) / 2, ty, label, f, fg, "mm")
+    if sub:   # 14 px, shrunk only as far as needed to fit the cap (never below 12)
+        px = 14
+        while px > 12 and font(MONT, px).getlength(sub) / S > (cx1 - cx0) - 10:
+            px -= 1
+        sc.text((cx0 + cx1) / 2, ty + 24, sub, font(MONT, px), fg if lit else LABEL, "mm")
+
+
+SYMBOLS = {"◀", "▶", "▲", "▼", "−", "+"}
+
+
+def symbol(sc, cx, cy, name, col, r=11):
+    """Arrows and -/+ drawn as shapes (the font's arrow glyphs are tiny)."""
+    pts = {"◀": [(cx - r, cy), (cx + r * 0.8, cy - r), (cx + r * 0.8, cy + r)],
+           "▶": [(cx + r, cy), (cx - r * 0.8, cy - r), (cx - r * 0.8, cy + r)],
+           "▲": [(cx, cy - r), (cx - r * 1.1, cy + r * 0.8), (cx + r * 1.1, cy + r * 0.8)],
+           "▼": [(cx, cy + r), (cx - r * 1.1, cy - r * 0.8), (cx + r * 1.1, cy - r * 0.8)]}
+    if name in pts:
+        sc.d.polygon([(x * S, y * S) for x, y in pts[name]], fill=col)
+    else:
+        sc.rect(cx - r * 1.2, cy - 2, cx + r * 1.2, cy + 2, fill=col)
+        if name == "+":
+            sc.rect(cx - 2, cy - r * 1.2, cx + 2, cy + r * 1.2, fill=col)
 
 
 def guarded_toggle(sc, x, y, w, h, cover_open=False, label="LOCK"):
@@ -168,7 +192,7 @@ def guarded_toggle(sc, x, y, w, h, cover_open=False, label="LOCK"):
     sc.d.ellipse(sc.b(cx - 11, cy - 11, cx + 11, cy + 11), fill="#151A1E", outline="#4C5358", width=S)
     sc.d.rounded_rectangle(sc.b(cx - 5, cy - 40, cx + 5, cy), radius=4 * S, fill="#B9BEC2", outline="#6E757B", width=S)
     sc.d.ellipse(sc.b(cx - 7, cy - 46, cx + 7, cy - 32), fill="#D8DCDF")
-    sc.text(cx, y + h - 13, label, font(MONT, 11), FRAME, "mm")
+    sc.text(cx, y + h - 13, label, font(MONT, 13), LABEL, "mm")
     if cover_open:
         # cover flipped up: shows as a thick striped bar at the top hinge
         cov = (x + 14, y + 8, x + w - 14, y + 22)
@@ -260,7 +284,7 @@ def small_lamp(sc, x, y, label, on, col=RED, f=None):
     sc.rect(x, y, x + 14, y + 14, fill=col if on else PANEL, outline=FRAME)
     if on:
         sc.glow_rect(x, y, x + 14, y + 14, col, 160)
-    sc.text(x - 5, y + 7, label, f or font(MONT, 12), FRAME, "rm")
+    sc.text(x - 5, y + 7, label, f or font(MONT, 13), LABEL, "rm")
 
 
 def voice_wave(n, seed, t=0):
@@ -342,7 +366,7 @@ def lock_screen():
 
 def header(sc, title, page, pages):
     sc.text(46, 28, title, font(MONT, 22), TEXT, "lm")
-    sc.text(322, 28, f"{page}/{pages}", font(MONT, 14), FRAME, "rm")
+    sc.text(322, 28, f"{page}/{pages}", font(MONT, 16), LABEL, "rm")
     for i in range(pages):
         x = 46 + i * 35
         sc.rect(x, 46, x + 29, 50, fill=AMBER if i + 1 == page else DIM)
@@ -358,8 +382,8 @@ def settings_screen(name="EFFECT", value=70, page=2, desc="DRIVE + BITCRUSH", un
     sc.arc(cx, cy, r, 135, 135 + 270 * value / 100, AMBER, 9)
     sc.arc(cx, cy, r + 9, 200, 260, "#5C6166", 3)               # slow-spinning outer tick (alive)
     sc.text(cx, cy - 2, f"{value}{unit}", font(MONT, 30), AMBER, "mm")
-    sc.text(cx, cy + 26, "LEVEL", font(MONT, 10), FRAME, "mm")
-    sc.text(176, 76, desc, font(MONT, 13), TEXT, "lm")
+    sc.text(cx, cy + 27, "LEVEL", font(MONT, 13), LABEL, "mm")
+    sc.text(176, 76, desc, font(MONT, 14), TEXT, "lm")
     for i in range(10):                                         # 10-seg bar
         sc.rect(176 + i * 17, 94, 189 + i * 17, 112, fill=AMBER if i < value // 10 else DIM)
     ticker(sc, 176, 128, Ticker(2, 4), font(AUREB, 12), mix(AMBER, "#000000", 0.45))
@@ -378,7 +402,7 @@ def reset_screen(progress=0.6):
     sc = Screen()
     header(sc, "FACTORY RESET", 8, 8)
     sc.text(184, 92, "Erase callsign and settings", font(MONT, 14), TEXT, "mm")
-    sc.text(184, 114, "Hold the switch for 2 seconds", font(MONT, 13), FRAME, "mm")
+    sc.text(184, 114, "Hold the switch for 2 seconds", font(MONT, 14), LABEL, "mm")
     for i in range(20):
         sc.rect(46 + i * 14, 138, 56 + i * 14, 160, fill=RED if i < int(progress * 20) else DIM)
     notched_frame(sc, 16, 60, 352, 184)
@@ -387,7 +411,7 @@ def reset_screen(progress=0.6):
     sc.glow_rect(30, 210, 338, 286, RED, 140, ring=True)
     sc.line([(30 + CAP_R, 211), (338 - CAP_R, 211)], "#8A3A3E", 1)
     sc.text(184, 240, "HOLD TO ERASE", font(MONT, 20), "#F0C8C8", "mm")
-    sc.text(184, 266, f"ARMING {int(progress * 100)}%", font(MONT, 12), "#E09090", "mm")
+    sc.text(184, 266, f"ARMING {int(progress * 100)}%", font(MONT, 14), "#E8A0A0", "mm")
     key(sc, 16, 312, 104, 104, "◀", BLUE, sub="PREV", big=True)
     key(sc, 132, 312, 104, 104, "MAIN", TEXT, sub="EXIT")
     key(sc, 248, 312, 104, 104, "▶", BLUE, sub="NEXT", big=True)
@@ -400,7 +424,7 @@ CHARS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
 def callsign_screen(cs="TK-421", sel=3):
     sc = Screen()
     sc.text(46, 28, "CALLSIGN", font(MONT, 22), TEXT, "lm")
-    sc.text(322, 28, "CODE CYLINDER", font(MONT, 11), FRAME, "rm")
+    sc.text(322, 28, "CODE CYLINDER", font(MONT, 13), LABEL, "rm")
     n, dw, gap = 10, 29, 3
     x0 = (W - (n * dw + (n - 1) * gap)) / 2
     for i in range(n):
