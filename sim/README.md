@@ -79,13 +79,29 @@ matrix), edge lamp strip, Aurebesh readout, rotor (Scomp, reticle, square bracke
 radar, cog), bar graph, ring meter, big gauge, hex table, temp tag. Parts can repeat (two
 scopes, two rotors). The UI code (`ui_imperial.c`) builds the live widgets from the list;
 the background art holds everything that never moves. Layout rules: `docs/UI-DESIGN.md` 5a.
-Settings page 11 (SKIN) switches between them. On the product the same recipes + art come
+Settings page 12 (SKIN) switches between them. On the product the same recipes + art come
 from signed `.vskin` files on the SD card (`docs/PRODUCT-NOTES.md`).
 
 To add a skin: add an entry to `CONCEPTS2` in `make_concepts2.py` (a part list), run it, rebuild.
 
 On the device the per-part state (`console_t`, ~60 KB for both screens) and the bar-graph
 canvases belong in PSRAM.
+
+## Voice chain (fw3i)
+
+The fw3i build runs the new voice chain from `firmware3/main/` (shared with the device):
+`voicefx.c` (voice shift -> radio band-pass / drive / bitcrush / static, VOX gate),
+`vshift.c` (learned pitch + tone shift: real-time PSOLA with per-grain resampling, 32 ms
+latency while on; learning = median pitch + LPC formants -> ratios onto the target) and
+`keysnd.c` (synthesised radio key-up / key-down sounds, six kinds). The VOICE page (settings
+page 2) learns from whatever plays in: mic, a recording, or Demo voice. Inside claude.ai the
+page cannot use the microphone; open the console file directly in Chrome for that.
+
+Offline tests (native gcc, `tools/dsp_test/`): `make_test_voices.py` (synthetic male / female
+/ child voices), `voice_test.c` (learn + shift + cost), `chain_test.c` (whole chain before /
+after WAV), `render_keys.c` (key sounds). Targets and key-sound numbers come from reference
+recordings measured with `tools/voice_analysis/` (the recordings stay in the git-ignored
+`voice_refs/`; only numbers are kept). Tours: `tools/tour-voice.txt`.
 
 ## Moving the Imperial UI into firmware3 (later)
 
@@ -96,4 +112,9 @@ volume + SH8601 brightness; `ui_platform_battery()` from the AXP2101 and `ui_pla
 from the QMI8658 - Waveshare's `01_AXP2101` / `03_QMI8658` examples show both), enable Montserrat 12/14/16/18/20/22/28 and Tiny TTF in sdkconfig,
 embed the fonts and the skin as RGB565 **byte-swapped** (firmware3 uses LV_COLOR_16_SWAP=y),
 raise the flash size to 16 MB, and pin audio and LVGL to different cores.
+Voice chain: add `voicefx.c`, `vshift.c`, `keysnd.c` to `firmware3/main/CMakeLists.txt` and
+replace the per-sample DSP in `audio_task` with `voicefx_process()` (it already returns Q15 and
+flags clipping); `audio_is_keyed()` = `voicefx_keyed()`. Save the VOICE fields of
+`ui_settings_t` in NVS. The UI calls `vlearn_*` from the LVGL task while audio runs on the
+other core: plain flags and counters, fine for learning, but keep the two on separate cores.
 Regenerate the skin with `python3 design/skins/make_default_skin.py`.

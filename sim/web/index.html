@@ -211,7 +211,7 @@ async function loadWasm(t) {
 const TARGETS = {
   fw3i: { name: 'ESP32-S3-TOUCH-AMOLED-1.8', radius: 45, boot: 'tap: MUTED ↔ LIVE',
           heap: 'Live layer only: the panel art is one background image per screen (the skin).',
-          note: 'The new Imperial console. Tap the keys: LIVE, SYS for settings, the LOCK cover then its switch. Unlock with 5 quick taps. Talk (or play Demo voice) to see it react.' },
+          note: 'The new Imperial console. Tap the keys: LIVE, SYS for settings, the LOCK cover then its switch. Unlock with 5 quick taps. Talk (or play Demo voice) to see it react. SYS, then NEXT: the VOICE page learns a voice (LEARN, read the script) and shifts it to the TROOPER range; it learns from whatever is playing in: your mic, a recording, or Demo voice.' },
   fw3: { name: 'ESP32-S3-TOUCH-AMOLED-1.8', radius: 45, boot: 'tap: MUTED ↔ LIVE',
          heap: 'firmware3 uses the system heap for LVGL, so this is a guide, not a limit.',
          note: 'The board in firmware3/. Corners are rounded like the panel, which clips about 45 px. Touch is dead on the bench unit, so BOOT and VOX are the controls.' },
@@ -452,7 +452,7 @@ $('srcMic').onclick = async () => {
     micStream ??= await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
   } catch {
     $('srcMic').disabled = true;
-    status('Microphone is not available here. Use Demo voice or a recording, or run the simulator locally.');
+    status('Microphone is not available here (pages inside claude.ai cannot use it). Use Demo voice or a recording, or open the console file directly in Chrome.');
     return;
   }
   disconnectSrc();

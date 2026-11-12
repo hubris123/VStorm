@@ -173,6 +173,11 @@ bool vlearn_result(const vs_target_t *t, vs_learn_t *o)
     if (o->f3) fr = t->f3 / o->f3;
     else if (o->f2) fr = t->f2 / o->f2;
     else fr = powf(pr, 0.27f);                                  /* no formants: follow pitch, gently */
+    /* sanity: a voice's throat size goes with its pitch (about pitch_ratio^0.27); keep the
+     * tone within 10 % of that, so a bad formant reading (weak F3, noise) cannot run away */
+    float expect = powf(pr, 0.27f);
+    if (fr < expect * 0.9f) fr = expect * 0.9f;
+    if (fr > expect * 1.1f) fr = expect * 1.1f;
     o->pitch_ratio = pr < 0.45f ? 0.45f : pr > 1.35f ? 1.35f : pr;
     o->formant_ratio = fr < 0.72f ? 0.72f : fr > 1.12f ? 1.12f : fr;
     return true;

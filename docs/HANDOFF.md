@@ -101,8 +101,11 @@ firmware3/
 2. Tune DSP to taste (drive / static / VOX / volume / mic gain in `audio.c`).
 3. Aurebesh tiny_ttf fonts (have `aurebesh.ttf` + english-aurebesh in the 1.47
    `firmware/`); then restyle to the Imperial MFD look.
-4. Settings / lock / callsign screens, 5-tap unlock, real click-burst WAVs,
-   mask/desolder the 2 hardware LEDs.
+4. Settings / lock / callsign screens, 5-tap unlock, mask/desolder the 2 hardware LEDs.
+5. **Voice shift + new key sounds** are built and running in the sim (fw3i): learned pitch
+   + tone shift onto the TROOPER target, VOICE page (settings page 2), synthesised radio
+   key sounds matched to the reference set. Port steps: `sim/README.md` (Voice chain).
+   CLONE target comes after TROOPER is signed off.
 
 ## Product vision (future, captured so it isn't lost)
 
