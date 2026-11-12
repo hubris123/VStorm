@@ -54,7 +54,7 @@ four. Red always means "transmitting / live / danger". Keep large areas black.
 |---|---|---|
 | Labels, keys | Condensed square sans, all caps, +1–2 px letter spacing | 20–24 px |
 | Big readout (values, callsign) | Same face, tabular digits | 32–40 px |
-| Callsign (top bar, main + lock) | Aurebesh-English hybrid | 42 px; steps down to 34 / 26 / 22 px so long callsigns end before the TX lamp (x 46–222) |
+| Callsign (top bar, main + lock) | Aurebesh-English hybrid | 42 px; steps down to 34 / 26 / 22 px so long callsigns end before the TX label (x 46–242). TX lamp x 276, CLIP lamp x 340 (right edge 354 = battery bar) |
 | Microtext / decoration | Aurebesh (Tiny TTF, already in repo), letter spacing ≈ 0.22 em + 15 % horizontal stretch, letters only (its digits render as tiny marks) | 12–16 px |
 | Fallback | Montserrat (built in) | — |
 

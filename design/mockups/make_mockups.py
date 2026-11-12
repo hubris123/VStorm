@@ -382,8 +382,8 @@ def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=N
     frame_col = (RED if live else AMBER) if keyed else "#8A8A8A"
     sc = Screen()
     sc.text(46, 31, "TK-421", font(AURENG, 33), RED, "lm")   # 33 here = 42 px on the device (148 px wide)
-    small_lamp(sc, 252, 22, "TX", keyed and live)
-    small_lamp(sc, 316, 22, "CLIP", False)
+    small_lamp(sc, 276, 22, "TX", keyed and live)
+    small_lamp(sc, 340, 22, "CLIP", False)
     tilt = None if keyed else (14 * math.sin(t / 9.0), -8 * math.sin(t / 13.0 + 1))   # hidden while talking
     scope(sc, 18, 62, 288, 176, BLUE, wave or voice_wave(60, 3, t), frame_col=frame_col, tilt=tilt)
     seg_meter(sc, 306, 178, level)
@@ -408,7 +408,7 @@ def main_screen(live=False, cover_open=False, t=0, lamp_states=None, lamp_opas=N
 # Everything that never changes on the main screen is baked into one 368x448 background
 # image (the default "skin"); only the parts in MAIN_LIVE are LVGL objects drawn on top.
 MAIN_LIVE = [
-    ("callsign", 44, 14, 210, 46), ("TX lamp", 251, 21, 267, 37), ("CLIP lamp", 315, 21, 331, 37),
+    ("callsign", 44, 14, 210, 46), ("TX lamp", 275, 21, 291, 37), ("CLIP lamp", 339, 21, 355, 37),
     ("scope trace", 19, 63, 287, 175), ("scope frame (keyed colour)", 13, 57, 293, 181),
     ("level meter", 305, 44, 343, 179), ("lamp cluster", 27, 195, 109, 305),
     ("readout text", 130, 194, 238, 300), ("Scomp rings", 255, 205, 345, 295),
@@ -420,7 +420,7 @@ MAIN_LIVE = [
 def main_background():
     """Static layer only: panel art the live widgets sit in front of."""
     sc = Screen()
-    for x, label in ((247, "TX"), (311, "CLIP")):
+    for x, label in ((271, "TX"), (335, "CLIP")):
         sc.text(x, 29, label, font(MONT, 13), LABEL, "rm")
     scope(sc, 18, 62, 288, 176, BLUE, [], trace=False, frame_col=None)
     for i in range(12):                                     # unlit meter wells
@@ -454,8 +454,8 @@ def layers_view():
 def lock_screen():
     sc = Screen()
     sc.text(46, 31, "TK-421", font(AURENG, 33), RED, "lm")   # 33 here = 42 px on the device (148 px wide)
-    small_lamp(sc, 252, 22, "TX", True, f=font(AUREB, 12))
-    small_lamp(sc, 316, 22, "CLIP", False, f=font(AUREB, 12))
+    small_lamp(sc, 276, 22, "TX", True, f=font(AUREB, 12))
+    small_lamp(sc, 340, 22, "CLIP", False, f=font(AUREB, 12))
     scope(sc, 18, 62, 288, 176, RED, voice_wave(60, 5))
     seg_meter(sc, 306, 178, 55)
     battery_bar(sc, 26)

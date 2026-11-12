@@ -396,7 +396,7 @@ def readout(sc, cx, cy, p, seed, lines=4, pitch=29):
 
 def top_bar(sc, p):
     sc.text(46, 31, "TK-421", f(m.AURENG, 33), p["accent"], "lm")   # = 42 px on the device
-    for x, label, on in ((252, "TX", True), (316, "CLIP", False)):
+    for x, label, on in ((276, "TX", True), (340, "CLIP", False)):
         sc.rect(x, 22, x + 14, 36, fill=p["accent"] if on else "#0C0F12", outline=p["frame"])
         if on:
             sc.glow_rect(x, 22, x + 14, 36, p["accent"], 140)

@@ -50,7 +50,7 @@ def meter_wells(sc):
 
 def main_bg():
     sc = m.Screen()
-    for x, label in ((247, "TX"), (311, "CLIP")):
+    for x, label in ((271, "TX"), (335, "CLIP")):
         sc.text(x, 29, label, m.font(m.MONT, 13), m.LABEL, "rm")
     m.scope(sc, 18, 62, 288, 176, m.BLUE, [], trace=False, frame_col=None)
     meter_wells(sc)
@@ -67,7 +67,7 @@ def main_bg():
 
 def lock_bg():
     sc = m.Screen()
-    for x, label in ((247, "TX"), (311, "CLIP")):
+    for x, label in ((271, "TX"), (335, "CLIP")):
         sc.text(x, 29, label, m.font(m.AUREB, 12), m.LABEL, "rm")
     m.scope(sc, 18, 62, 288, 176, m.RED, [], trace=False, frame_col=None)
     meter_wells(sc)

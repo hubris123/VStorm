@@ -226,8 +226,8 @@ typedef struct {
 static console_t con_main, con_lock;
 
 /* Callsign in the top bar: as big as fits. 42 px normally; long callsigns step down
- * (34, 26, 22) so they never run into the TX / CLIP lamps (space x 46..222). */
-#define CS_MAX_W 176
+ * (34, 26, 22) so they never run into the TX / CLIP lamps (space x 46..242). */
+#define CS_MAX_W 196      /* callsign x 46..242; TX label starts ~252 */
 static void callsign_show(console_t *c)
 {
     lv_font_t *opts[4] = {f_aureng42, f_aureng34, f_aureng26, f_aureng22};
@@ -288,8 +288,8 @@ static void make_chart(console_t *c, lv_color_t trace)
 
 static void make_small_lamps(console_t *c)
 {
-    c->tx = box(c->scr, 252, 22, 14, 14, COL_PANEL);
-    c->clip = box(c->scr, 316, 22, 14, 14, COL_PANEL);
+    c->tx = box(c->scr, 276, 22, 14, 14, COL_PANEL);      /* TX/CLIP: CLIP right edge = battery bar (354) */
+    c->clip = box(c->scr, 340, 22, 14, 14, COL_PANEL);
     lv_obj_set_style_border_width(c->tx, 1, 0);
     lv_obj_set_style_border_color(c->tx, COL_FRAME, 0);
     lv_obj_set_style_border_width(c->clip, 1, 0);
@@ -478,6 +478,9 @@ static void make_ticker(console_t *c)
     c->t_word = aureb_label(c->scr, "TEMP", f_aureb13, COL_TICK);
     c->t_num = label(c->scr, "0", f_aureng20 ? f_aureng20 : &lv_font_montserrat_16, COL_TICK);   /* 20 px: digits 13 px tall = the Aurebesh letters as drawn */
     c->t_unit = aureb_label(c->scr, "F", f_aureb13, COL_TICK);
+    lv_obj_add_flag(c->t_word, LV_OBJ_FLAG_HIDDEN);        /* hidden until temp_update places them */
+    lv_obj_add_flag(c->t_num, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(c->t_unit, LV_OBJ_FLAG_HIDDEN);
     c->shown_temp = -999999;
 }
 
@@ -524,6 +527,7 @@ static void make_scomp(console_t *c)
     for (int r = 0; r < 3; r++) c->rev_next[r] = 160 + rnd() % 161;   /* 8-16 s */
 }
 
+static void temp_update(console_t *c);
 static void console_build(console_t *c, lv_color_t trace)
 {
     make_small_lamps(c);
@@ -532,6 +536,7 @@ static void console_build(console_t *c, lv_color_t trace)
     make_lamps(c);
     make_ticker(c);
     make_scomp(c);
+    temp_update(c);          /* place the secret temp now, not half a second later */
 }
 
 /* ================= MAIN ================= */
