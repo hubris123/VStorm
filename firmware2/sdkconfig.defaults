@@ -1,0 +1,36 @@
+CONFIG_IDF_TARGET="esp32s3"
+
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+
+CONFIG_PARTITION_TABLE_CUSTOM=y
+
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+
+CONFIG_LV_COLOR_16_SWAP=y
+CONFIG_LV_FONT_MONTSERRAT_12=y
+CONFIG_LV_FONT_MONTSERRAT_16=y
+CONFIG_LV_FONT_MONTSERRAT_20=y
+CONFIG_LV_USE_DEMO_WIDGETS=y
+CONFIG_LV_USE_DEMO_BENCHMARK=y
+CONFIG_LV_USE_DEMO_STRESS=y
+CONFIG_LV_USE_DEMO_MUSIC=y
+
+CONFIG_LV_USE_TINY_TTF=y
+
+# 1 kHz tick: the LVGL adapter task yields with vTaskDelay(1ms). At the default
+# 100 Hz tick that truncates to 0 ticks and never lets IDLE0 run, tripping the
+# task watchdog. 1 kHz makes the 1 ms yield real.
+CONFIG_FREERTOS_HZ=1000
+
+# LVGL: use the system heap (clib malloc) instead of the cramped 48 KB builtin
+# pool. The tiny_ttf glyph rasterizer exhausts 48 KB on this UI and aborts in
+# stbtt__new_active. clib malloc reaches the full internal heap (and PSRAM).
+CONFIG_LV_USE_BUILTIN_MALLOC=n
+CONFIG_LV_USE_CLIB_MALLOC=y
+CONFIG_LV_USE_BUILTIN_STRING=n
+CONFIG_LV_USE_CLIB_STRING=y
+CONFIG_LV_USE_BUILTIN_SPRINTF=n
+CONFIG_LV_USE_CLIB_SPRINTF=y

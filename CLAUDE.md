@@ -2,9 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Overview
+## CURRENT STATUS - read `docs/HANDOFF.md` first
 
-This repository contains demo code for the **Waveshare ESP32-S3 Touch LCD 1.47"** development board. All source is under `docs/ESP32-S3-Touch-LCD-1.47-Demo/` with two parallel tracks:
+Active work is the **ESP32-S3-Touch-AMOLED-1.8** port in **`firmware3/`** (not the
+1.47 board below). Display + UI + audio work; next is the first listening test.
+Key gotcha: use the **raw SH8601 legacy display path + LVGL v8.4**, NOT the
+`esp_lv_adapter`/CO5300 path (it renders garbage/black on this unit). `firmware2/`
+is an abandoned attempt. Build from `firmware3/` on **COM8**. Full details, layout,
+findings, and next steps are in `docs/HANDOFF.md`.
+
+## Overview (historical - original 1.47 board, in `firmware/`)
+
+This section describes the original demo code for the **Waveshare ESP32-S3 Touch LCD 1.47"** development board. All source is under `docs/ESP32-S3-Touch-LCD-1.47-Demo/` with two parallel tracks:
 
 - **ESP-IDF** (`docs/.../ESP-IDF/`) — Espressif's native framework, requires ESP-IDF v5.4.0+
 - **Arduino** (`docs/.../Arduino/`) — Arduino IDE / arduino-cli based examples

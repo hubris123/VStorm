@@ -3,3 +3,8 @@ firmware/managed_components/
 firmware/sdkconfig.old
 capture/
 *.tmp
+
+# ESP-IDF build artifacts (regenerable)
+build/
+managed_components/
+sdkconfig.old

@@ -24,7 +24,26 @@
       "Bash(git push *)",
       "PowerShell(Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match 'COM\\\\d' } | Select-Object Name, DeviceID)",
       "PowerShell(Get-ChildItem C:\\\\Espressif\\\\frameworks -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem \"$env:USERPROFILE\\\\esp\" -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem C:\\\\esp -ErrorAction SilentlyContinue | Select-Object Name)",
-      "PowerShell(Copy-Item -Recurse \"C:\\\\Users\\\\Administrator\\\\Claude\\\\Projects\\\\voicechanger\\\\docs\\\\ESP32-S3-Touch-LCD-1.47-Demo\\\\ESP-IDF\\\\03_lvgl_example\" \"C:\\\\Users\\\\Administrator\\\\Claude\\\\Projects\\\\voicechanger\\\\firmware\")"
+      "PowerShell(Copy-Item -Recurse \"C:\\\\Users\\\\Administrator\\\\Claude\\\\Projects\\\\voicechanger\\\\docs\\\\ESP32-S3-Touch-LCD-1.47-Demo\\\\ESP-IDF\\\\03_lvgl_example\" \"C:\\\\Users\\\\Administrator\\\\Claude\\\\Projects\\\\voicechanger\\\\firmware\")",
+      "WebFetch(domain:api.weather.gov)",
+      "Bash(cd /c/Users/Administrator/Documents/DeskMediaDeviceV2 && grep -n \"wmo_icon_map.h\\\\|wmo_is_nighttime\" main/main.c)",
+      "Bash(C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.ps1)",
+      "Bash(Select-String -Pattern \"IDF_PATH|error\" -SimpleMatch)",
+      "Bash(idf.py flash *)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "PowerShell(cd \"C:\\\\Users\\\\Administrator\\\\Documents\\\\DeskMediaDeviceV2\"; . C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.ps1 2>&1 | Out-Null; idf.py build 2>&1 | Tee-Object build_log.txt; Write-Host \"EXIT: $LASTEXITCODE\")",
+      "Bash(ls \"C:/esp/v5.5.4/esp-idf/export.ps1\" 2>/dev/null && echo \"found\" || echo \"not found\")",
+      "PowerShell(& \"C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.ps1\" 2>&1)",
+      "PowerShell(& \"C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.ps1\" 2>$null; Set-Location \"C:\\\\Users\\\\Administrator\\\\Claude\\\\Projects\\\\voicechanger\\\\firmware2\"; idf.py build 2>&1 | Where-Object { $_ -match \"error:|warning:|fatal:|undefined\" } | Select-Object -First 40)",
+      "PowerShell(& \"C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.ps1\" 2>$null; Set-Location \"C:\\\\Users\\\\Administrator\\\\Claude\\\\Projects\\\\voicechanger\\\\firmware2\"; $job = Start-Job { & \"C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.ps1\" 2>$null; idf.py monitor -p COM8 2>&1 }; Start-Sleep -Seconds 12; Stop-Job $job; Receive-Job $job | Select-Object -Last 50)",
+      "PowerShell(& \"C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.ps1\" 2>$null; Set-Location \"C:\\\\Users\\\\Administrator\\\\Claude\\\\Projects\\\\voicechanger\\\\firmware2\"; $job = Start-Job -ScriptBlock { param\\($dir\\) Set-Location $dir; & \"C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.ps1\" 2>$null; idf.py monitor -p COM8 2>&1 } -ArgumentList \"C:\\\\Users\\\\Administrator\\\\Claude\\\\Projects\\\\voicechanger\\\\firmware2\"; Start-Sleep -Seconds 14; Stop-Job $job; Receive-Job $job | Select-String -Pattern \"ESP|I2C|audio|display|bsp|error|panic|assert|main|boot\" | Select-Object -Last 40)",
+      "PowerShell(cd \"C:\\\\Users\\\\Administrator\\\\Documents\\\\DeskMediaDeviceV2\"; . C:\\\\esp\\\\v5.5.4\\\\esp-idf\\\\export.ps1 2>&1 | Out-Null; idf.py fullclean 2>&1 | Out-Null; idf.py build 2>&1 | Tee-Object build_log.txt | Select-String -Pattern \"error|Error|failed|complete\" | Select-Object -Last 15; Write-Host \"EXIT: $LASTEXITCODE\")",
+      "Bash(ls \"C:/Users/Administrator/Documents/DeskMediaDeviceV2/main/assets/\" 2>/dev/null; ls \"C:/Users/Administrator/Documents/DeskMediaDeviceV2\"/*.png \"C:/Users/Administrator/Documents/DeskMediaDeviceV2/main\"/*.png 2>/dev/null; ls \"C:/Users/Administrator/Downloads\"/*.png 2>/dev/null | head -5)",
+      "Read(//c/Users/Administrator/.claude/plugins/**)",
+      "Read(//c/Users/Administrator/.claude/**)",
+      "Bash(mkdir -p 'C:\\\\Users\\\\Administrator/.claude/projects/C--Users-Administrator-Documents-DeskMediaDeviceV2/memory')",
+      "Bash(cp project_desk_media_device.md project_prize_wheel.md feedback_user_builds_himself.md feedback_backlog_descope_desk_media.md project_nws_migration.md feedback_board_quirks.md reference_webcam_frames.md reference_sd_speed_p4.md feedback_no_em_dashes.md feedback_no_screen_without_asking.md 'C:\\\\Users\\\\Administrator/.claude/projects/C--Users-Administrator-Documents-DeskMediaDeviceV2/memory/')"
     ]
   }
 }

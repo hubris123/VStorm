@@ -1,99 +1,129 @@
-# Session Handoff — Stormtrooper Voice Changer
+# Session Handoff - Stormtrooper Voice Changer
 
-_Last updated: 2026-06-12_
+_Last updated: 2026-11-11_
 
 ## TL;DR
-Firmware + UI are **done and verified** on the original board. The project is now
-**picking a new off-the-shelf board** that has audio onboard, because the original
-1.47" board needs external audio circuitry. Three candidate schematics are in `docs/`
-and need analysis (see "Next Task"). No custom PCB — that path was rejected.
+
+The board pivot is done and the **AMOLED port works**. Active firmware is
+**`firmware3/`** (ESP32-S3-Touch-AMOLED-1.8). Display, full Imperial UI, and
+audio (ES8311) all run on-device. Audio is confirmed end-to-end: mic captures,
+DSP runs, speaker outputs. Mic + speaker are now **soldered on with the speaker
+separated** from the mic, so the **first real listening test** is the next step.
+
+Repo: https://github.com/hubris123/VStorm (branch `main`).
 
 ---
 
-## Where things stand
+## Build / flash
 
-### Done & verified (on ESP32-S3-Touch-LCD-1.47, current `firmware/`)
-- Full Imperial-console UI: main screen, settings carousel (SETTINGS → AUDIO →
-  CALLSIGN → BRIGHTNESS via top arrows, wraps to main), mirrored lock screen,
-  popups. All self-tested via webcam + serial-tap rig.
-- Stormtrooper DSP: 300Hz–3kHz bandpass → soft-clip → bitcrush → static bed, VOX
-  4-state gate w/ key-up/down click bursts (synth placeholders; user's real WAVs pending).
-- Audio engine: ADC mic (GPIO4) → ring buffer → sigma-delta out (GPIO5). Modes
-  PASS/TONE/MUTE. **Never heard** — no jacks soldered yet.
-- NVS settings persistence; BOOT button (click=mute, 3s=lock, 10s=factory reset).
-- Fonts: Montserrat (UI), Aurebesh-English hybrid (callsign, home+lock only),
-  pure Aurebesh (lock decorations).
-- Serial tap test rig (`ui_debug.c`, debug-only — remove for production).
-- Git backup: https://github.com/hubris123/VStorm
-
-### Build / flash
-IDF **5.5.4 only**: `& C:\esp\v5.5.4\esp-idf\export.ps1` then
-`idf.py build flash -p COM5`. Webcam frames in `capture\current\` (newest;
-rotates fast — older in `capture\archive\` by timestamp).
+IDF **5.5.4 only**. From `firmware3/`:
+```
+& C:\esp\v5.5.4\esp-idf\export.ps1
+idf.py build
+idf.py flash -p COM8          # board is on COM8
+idf.py monitor -p COM8        # needs a real TTY; background jobs fail
+```
+`build/` and `managed_components/` are gitignored - run `idf.py reconfigure`
+once after clone to let the component manager restore them (`dependencies.lock`
+is committed so versions pin).
 
 ---
 
-## THE PIVOT — choosing a new board
+## The one thing that matters most: the display path
 
-The original 1.47 has no onboard audio. Rather than design a custom PCB (rejected)
-or add bulky USB-audio dongles (rejected — see below), the plan is to switch to a
-Waveshare board that has an **ES8311 audio codec onboard** (mic ADC + speaker DAC in
-one chip) plus a speaker connector.
+This unit's `board_variant_detect()` reports **SH8601 + FT3168** (not
+CO5300+CST816). The working display path is the stock `05_LVGL_WITH_RAM`
+example's **`app_main_legacy_sh8601()`**: raw `esp_lcd` SH8601 driver + manual
+`esp_lcd_panel_draw_bitmap` flush + **LVGL v8.4**.
 
-**Hard constraints (from the user):**
-- Space is **very tight** and **requires an external boom mic** (onboard mic won't do).
-- Prefer to attach the boom mic **without removing a component**.
-- Output quality doesn't matter (megaphone/radio effect, dirty signal fine; will trim
-  level so it doesn't overdrive a secondary amp). No line-level requirement —
-  amplified speaker output is acceptable.
-- **No custom board design.**
+**Do NOT use `bsp_display_start()` / the `esp_lv_adapter` (CO5300) path.** It
+renders garbage under LVGL v9 and a black screen under v8 on this unit. That was
+the entire multi-hour battle. `firmware2/` is the abandoned v9/adapter attempt -
+ignore it (kept only as a record of the dead end).
 
-**Use S3, not C6** — C6 is single-core RISC-V, weak for DSP; all firmware is S3-based.
-
-### Rejected paths (do not re-chase)
-- Custom carrier/integrated PCB (MAX4466 + PCM5102A) — user doesn't want to design a board.
-- USB-C audio dongle / passthrough — bulkiest option (fights tight space), host-vs-device
-  port conflict loses serial-while-audio, highest latency, least proven. Set aside.
+Pin LVGL to `8.4.*`.
 
 ---
 
-## NEXT TASK — analyze the three candidate schematics
+## firmware3 layout
 
-Files (read **one at a time** to control context cost):
-- `docs/ESP32-S3-Touch-LCD-1.83/ESP32-S3-Touch-LCD-1.83-schematic.pdf`
-  (partially analyzed: ES8311 codec U9 + NS4150B amp U13 + ES7210 4ch ADC U12 +
-  onboard mics MIC1/MIC2 + **J3 speaker connector**)
-- `docs/ESP32-S3-Touch-AMOLED-1.8/ESP32-S3-Touch-AMOLED-1.8.pdf`
-- `docs/ESP32-S3-Touch-AMOLED-2.16-Schematic/ESP32-S3-Touch-AMOLED-2.16-Schematic.pdf`
+```
+firmware3/
+  main/
+    example_qspi_with_ram.c  - board bringup (stock 05 example, lightly edited):
+                               board_variant_detect -> SH8601 legacy path ->
+                               ui_init() + audio_init(touch_i2c_bus) +
+                               start_mute_button(). Brightness via cmd 0x51 (=140).
+    ui.c / ui.h              - LVGL v8 Imperial console UI (our code)
+    audio.c / audio.h        - ES8311 full-duplex + stormtrooper DSP (our code)
+  components/
+    esp32_s3_touch_amoled_1_8 - BSP (touch init made non-fatal, see below)
+    espressif__es8311         - VENDORED es8311 (registry 1.x uses old i2c_port_t
+                                API; this copy from 06_I2SCodec takes the bus handle)
+    board_variant, esp_lcd_sh8601, ...
+  sdkconfig                   - committed (hand-tuned: perf monitor off, etc.)
+```
 
-For **each** board, determine:
-1. **Boom-mic attach point** — is the ES8311 `MIC1P/MIC1N` input, or a spare ES7210
-   channel, broken out to an accessible pad/test-point/header so an external electret
-   can attach **without removing the onboard mic**? (The user's key question.)
-2. **Full-duplex** — confirm simultaneous mic-ADC + speaker-DAC on the ES8311 (it's an
-   intercom codec, so expected — but a GitHub issue questioned mic+speaker on the
-   AMOLED-2.06; verify the board wiring).
-3. **Output connector** — type, and amplified-speaker (NS4150-class) vs line. Either is
-   fine for this use.
-4. **Display + touch controllers** — confirm the BSP can be adapted from Waveshare's demo.
+## What works (firmware3, verified on hardware 2026-06)
 
-Also pull each board's **GitHub demo repo** (github.com/waveshareteam/...) to confirm
-the actual codec I2S/I2C pin assignments and that the demo does full-duplex.
+- Display clean, no garbage. Dimmed to ~55% (cmd 0x51 = 140) for readability.
+- Full UI: top bar (callsign + gear), scrolling scope, segmented level meter,
+  animated status-light cluster, rotating dual-arc knob, bottom bar
+  (LOCK / TX / CLIP / LIVE-or-MUTED). Corner-safe insets (see dead-zone note).
+- Audio: ES8311 full-duplex 16kHz. Mic path is I2S through the ES8311 (analog
+  mic, `es8311_microphone_config(h, false)`). DSP ported verbatim from the 1.47
+  firmware: 300Hz-3kHz bandpass -> soft-clip -> bitcrush -> static bed, VOX
+  4-state gate with key-up/down click bursts.
+- Output boots **MUTED** (safe). **GPIO0 / BOOT button toggles MUTED <-> LIVE**
+  (touch is dead on this unit so the button is the control). Muted still drives
+  the meter/scope from live mic level.
+- Safe gains: ES8311 voice vol 55, mic gain 18dB, VOX thresh 22, static 15.
 
-**Deliverable:** a ranked recommendation of which board best fits (cleanest boom-mic
-attach, confirmed full-duplex, drivable display).
+## Known issues / decisions
+
+- **Touch**: CST816 does not ACK on this unit; touch init made **non-fatal** in
+  the BSP (`bsp_display_indev_init`). Input is GPIO0 button + VOX. Not needed for
+  core function.
+- **Feedback**: onboard mic + speaker sit adjacent -> acoustic feedback when
+  LIVE. Fixed by physical separation (the now-soldered remote speaker). Not a bug.
+- **Rounded display**: 368x448 is a round-rect; outer ~45px corners are
+  physically clipped. Keep content clear of corners. Guide image:
+  `design/screen_template.png` (shows screen outline, corner dead zones, and the
+  live-widget window rects from `ui.c`).
 
 ---
 
-## After the board is chosen (carries over from 1.47 work)
-- Firmware audio path → ES8311 I2S codec (adapt Waveshare demo; don't write from scratch).
-- New BSP for the chosen display/touch (adapt Waveshare demo).
-- UI re-layout for the new resolution — all screens/logic/fonts carry over, just
-  repositioned.
-- Then resume original milestones: listening test, real click WAVs, M5 hardening
-  (soak test, sticker copy, README; note 2 hardware LEDs that must be masked/desoldered).
+## Next steps
 
-## Efficiency rules (user is quota-conscious)
-Batch changes into one flash; read a webcam frame only for risky changes (not color/size
-tweaks); single frame unless verifying motion; keep replies short; prefer fresh sessions
-when context gets large. IDF stays 5.5.4. Always adapt Waveshare demo code, never from scratch.
+1. **Listening test** (now unblocked): power on -> boots muted -> confirm meter
+   tracks voice -> press BOOT for LIVE -> listen for the trooper effect with the
+   speaker separated from the mic.
+2. Tune DSP to taste (drive / static / VOX / volume / mic gain in `audio.c`).
+3. Aurebesh tiny_ttf fonts (have `aurebesh.ttf` + english-aurebesh in the 1.47
+   `firmware/`); then restyle to the Imperial MFD look.
+4. Settings / lock / callsign screens, 5-tap unlock, real click-burst WAVs,
+   mask/desolder the 2 hardware LEDs.
+
+## Product vision (future, captured so it isn't lost)
+
+Skinnable UI: a "skin" = a 368x448 background PNG with dark window rects where
+the live LVGL widgets sit on top. Delivery: companion phone app scans a **QR =
+signed single-use download URL** from a website, downloads the skin, pushes it to
+the device over **BLE** (ESP32-S3 is BLE-only; device never goes online).
+Device shows its ID on a settings screen; user types it into the website at
+registration (air-gapped). Licenses are **device-bound** (signed for the unit's
+eFuse ID) so a copied skin won't load on another device. Marketplace sells
+**original** sci-fi glyph skins (literal aurebesh only for free/personal
+sideload - Disney IP risk on paid Star Wars art).
+
+---
+
+## Reference material in this repo
+
+- `docs/ESP32-S3-Touch-AMOLED-1.8/code examples/` - Waveshare demos. The two that
+  matter: **`05_LVGL_WITH_RAM`** (the proven display path) and **`06_I2SCodec`**
+  (ES8311 audio + the vendored es8311 component). We built firmware3 from these.
+- `docs/ESP32-S3-Touch-AMOLED-1.8/ESP32-S3-Touch-AMOLED-1.8_schematic.pdf`
+- `docs/BOARD-ANALYSIS.md` - why this board was chosen.
+- `firmware/` - the original, fully-working **1.47-board** firmware (ADC mic +
+  sigma-delta out). Source of the DSP, UI design, and fonts.
