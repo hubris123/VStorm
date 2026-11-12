@@ -358,11 +358,14 @@ static void live_refresh(void)
     bool m = audio_is_muted();
     shown_muted = m;
     lv_label_set_text(cap_live.lbl, m ? "MUTED" : "LIVE");
-    lv_label_set_text(cap_live.sub, m ? "TAP FOR LIVE" : "TRANSMIT");
-    sub_fit(&cap_live);
+    /* two lines so it stays at the full 14 px instead of shrinking */
+    lv_label_set_text(cap_live.sub, m ? "TAP FOR\nLIVE" : "TRANSMIT");
+    lv_obj_set_style_text_align(cap_live.sub, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_line_space(cap_live.sub, -2, 0);
+    lv_obj_set_style_text_font(cap_live.sub, &lv_font_montserrat_14, 0);
     cap_style(&cap_live, !m);
-    lv_obj_align(cap_live.lbl, LV_ALIGN_CENTER, 0, -10);
-    lv_obj_align(cap_live.sub, LV_ALIGN_CENTER, 0, 13);
+    lv_obj_align(cap_live.lbl, LV_ALIGN_CENTER, 0, m ? -17 : -10);
+    lv_obj_align(cap_live.sub, LV_ALIGN_CENTER, 0, m ? 13 : 13);
 }
 
 static void live_cb(lv_event_t *e) { audio_set_mute(!audio_is_muted()); live_refresh(); }

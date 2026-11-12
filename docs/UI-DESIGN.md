@@ -62,7 +62,7 @@ four. Red always means "transmitting / live / danger". Keep large areas black.
 - Minimum readable size on this panel: 16 px (≈1.3 mm cap height). Anything the user must
   read at arm's length: 20 px+.
 - Aurebesh is decoration and the lock screen only — never the only label on a control.
-- Key labels: main word 18 px; sub-label 14 px (12 px only if needed to fit) in light grey
+- Key labels: main word 18 px; sub-label 14 px in light grey; a label too wide for its key wraps onto two lines (e.g. "TAP FOR / LIVE") rather than shrinking, 12 px only as a last resort,
   `#A9B0B5`, never the dark `FRAME` grey. Other notes ≥ 13 px. Arrows and − / + are drawn
   as shapes about 22 px across, not font glyphs.
 
