@@ -151,7 +151,7 @@ def guarded_toggle(sc, x, y, w, h, cover_open=False, label="LOCK"):
 
 
 LAMP_LAYOUT = [(0, 0, 80, 14, False), (0, 22, 32, 14, False), (42, 22, 28, 28, True),
-               (0, 44, 32, 14, False), (42, 44, 32, 14, False), (0, 66, 28, 28, True), (42, 66, 32, 14, False)]
+               (0, 44, 32, 14, False), (42, 58, 32, 14, False), (0, 66, 28, 28, True), (42, 80, 32, 14, False)]
 
 
 def lamps(sc, x, y, states, opas=None):

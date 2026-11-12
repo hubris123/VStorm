@@ -113,8 +113,8 @@ static void make_fake_cluster(lv_obj_t *parent, int x_base, int y_base)
     static const struct { int x, y, w, h; bool dome; } fl[FAKE_LIGHTS] = {
         {0,  0,  80, 14, false},
         {0,  22, 32, 14, false}, {42, 22, 28, 28, true},
-        {0,  44, 32, 14, false}, {42, 44, 32, 14, false},
-        {0,  66, 28, 28, true},  {42, 66, 32, 14, false},
+        {0,  44, 32, 14, false}, {42, 58, 32, 14, false},
+        {0,  66, 28, 28, true},  {42, 80, 32, 14, false},
     };
     for (int i = 0; i < FAKE_LIGHTS; i++) {
         lv_obj_t *f = lv_obj_create(parent);
