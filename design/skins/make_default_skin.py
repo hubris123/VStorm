@@ -81,9 +81,9 @@ def lock_bg():
 
 
 def settings_common(sc, frame=True):
-    for i in range(11):                                     # page pip wells (11 settings pages)
-        x = 46 + i * 25
-        sc.rect(x, 46, x + 20, 50, fill=m.DIM)
+    for i in range(12):                                     # page pip wells (12 settings pages)
+        x = 46 + i * 23
+        sc.rect(x, 46, x + 18, 50, fill=m.DIM)
     if frame:
         m.notched_frame(sc, 16, 60, 352, 184)
     for x in (16, 132, 248):
@@ -154,7 +154,15 @@ def settings_skin_bg():
     return sc
 
 
-SKINS = {"settings_skin": settings_skin_bg, "main": main_bg, "lock": lock_bg, "settings_value": settings_value_bg, "settings_sensors": settings_sensors_bg,
+def settings_voice_big_bg():
+    """VOICE learn / result: one tall panel over the three bottom keys"""
+    sc = m.Screen()
+    settings_common(sc, frame=False)
+    m.notched_frame(sc, 16, 60, 352, 300)
+    return sc
+
+
+SKINS = {"settings_voice_big": settings_voice_big_bg, "settings_skin": settings_skin_bg, "main": main_bg, "lock": lock_bg, "settings_value": settings_value_bg, "settings_sensors": settings_sensors_bg,
          "settings_wide": settings_wide_bg, "callsign": callsign_bg}
 
 

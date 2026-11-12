@@ -1,0 +1,27 @@
+# VOICE page: learn (test buzz as the voice), result, adjust, save, AUTO on/off
+wait 600
+tap 184 376
+tap 300 376
+shot v1_page
+tap 300 256
+signal 0.5 2000
+wait 300
+signal 0.5 3000
+shot v2_reading
+signal 0.5 7000
+wait 400
+signal 0.5 4000
+wait 1500
+shot v3_result
+tap 300 376
+shot v4_adjust
+tap 300 256
+tap 300 256
+tap 184 256
+tap 68 256
+shot v5_adjust_tone
+tap 184 376
+wait 300
+shot v6_page_learned
+tap 68 256
+shot v7_auto_off

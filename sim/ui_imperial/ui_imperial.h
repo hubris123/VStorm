@@ -48,7 +48,8 @@ void ui_platform_voice_monitor(bool on);
 
 /* skin (static background layer, RGB565 368x448) + fonts */
 extern const uint8_t skin_main_px[], skin_lock_px[], skin_settings_value_px[],
-                     skin_settings_wide_px[], skin_callsign_px[], skin_settings_sensors_px[], skin_settings_skin_px[];
+                     skin_settings_wide_px[], skin_callsign_px[], skin_settings_sensors_px[], skin_settings_skin_px[],
+                     skin_settings_voice_big_px[];
 extern const uint8_t aurebesh_ttf_start[];
 extern const unsigned aurebesh_ttf_len;
 extern const uint8_t aureng_ttf_start[];

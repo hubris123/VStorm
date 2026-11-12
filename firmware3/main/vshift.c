@@ -76,6 +76,7 @@ void vlearn_start(void)
     s_learn = true;
 }
 void vlearn_stop(void) { s_learn = false; }
+void vlearn_resume(void) { s_learn = true; }
 bool vlearn_running(void) { return s_learn; }
 
 static void hist_add(uint16_t *h, int nb, int b) { if (b >= 0 && b < nb && h[b] < 65535) h[b]++; }

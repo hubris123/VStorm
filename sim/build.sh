@@ -78,7 +78,7 @@ with open(out, "w") as f:
         f.write(",".join(str(b) for b in data))
         f.write("};\n")
     if skins:
-        for name in ("main", "lock", "settings_value", "settings_wide", "settings_sensors", "settings_skin", "callsign"):
+        for name in ("main", "lock", "settings_value", "settings_wide", "settings_sensors", "settings_skin", "settings_voice_big", "callsign"):
             w, h, bpp, rows = png_rgb(os.path.join(skins, name + ".png"))
             assert (w, h) == (368, 448), name
             px = bytearray()

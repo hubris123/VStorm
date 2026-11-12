@@ -17,6 +17,7 @@
 #include "ui.h"
 #include "ui_imperial.h"
 #include "skin.h"
+#include "vshift.h"
 
 /* ---------------- palette (docs/UI-DESIGN.md section 2) ---------------- */
 #define C(hex) lv_color_hex(hex)
@@ -61,7 +62,7 @@ static lv_img_dsc_t mk_skin(const uint8_t *px)
     d.data = px;
     return d;
 }
-static lv_img_dsc_t skin_main, skin_lock, skin_set_value, skin_set_wide, skin_callsign, skin_set_sensors, skin_set_skin;
+static lv_img_dsc_t skin_main, skin_lock, skin_set_value, skin_set_wide, skin_callsign, skin_set_sensors, skin_set_skin, skin_set_voice_big;
 
 static lv_obj_t *make_screen(const lv_img_dsc_t *skin, lv_obj_t **bg_out)
 {
@@ -1501,9 +1502,10 @@ static void build_lock(void)
 }
 
 /* ================= SETTINGS ================= */
-enum { P_VOLUME, P_EFFECT, P_VOX, P_STATIC, P_CLICK, P_BRIGHT, P_CALLSIGN, P_RESET, P_DISPLAY, P_SENSORS, P_SKIN, NPAGES };
+enum { P_VOLUME, P_VOICE, P_EFFECT, P_VOX, P_STATIC, P_CLICK, P_BRIGHT, P_CALLSIGN, P_RESET, P_DISPLAY, P_SENSORS, P_SKIN, NPAGES };
 static const struct { const char *title, *desc; int min, max; } PAGE[NPAGES] = {
     {"VOLUME", "SPEAKER LEVEL", 0, 100},
+    {"VOICE", "", 0, 0},
     {"EFFECT", "DRIVE + BITCRUSH", 0, 100},
     {"VOX", "GATE OPENS AT", 0, 100},
     {"STATIC", "RADIO NOISE BED", 0, 100},
@@ -1569,6 +1571,9 @@ static void sensors_readout(void);
 static void carousel_refresh(void);
 static lv_obj_t *grp_skin;
 static cap_t cap_skin[3];             /* < SKIN | APPLY | SKIN > */
+static lv_obj_t *grp_voice;
+static void voice_page_refresh(void);
+static void voice_page_show(bool on);
 static int skin_sel, cur_skin = -1;
 
 static void page_show(void)
@@ -1577,16 +1582,17 @@ static void page_show(void)
     lv_label_set_text_fmt(set_count, "%d/%d", page + 1, NPAGES);
     lv_obj_update_layout(set_count);
     lv_obj_set_pos(set_count, 322 - lv_obj_get_width(set_count), 19);
-    lv_obj_set_x(set_pip, 46 + page * 25);
-    bool three = (page == P_SENSORS), skinp = (page == P_SKIN);
+    lv_obj_set_x(set_pip, 46 + page * 23);
+    bool three = (page == P_SENSORS), skinp = (page == P_SKIN), voicep = (page == P_VOICE);
     bool wide = (page == P_CALLSIGN || page == P_RESET || page == P_DISPLAY);
-    lv_img_set_src(set_bg, skinp ? &skin_set_skin : three ? &skin_set_sensors : wide ? &skin_set_wide : &skin_set_value);
+    voice_page_show(voicep);
+    lv_img_set_src(set_bg, (skinp || voicep) ? &skin_set_skin : three ? &skin_set_sensors : wide ? &skin_set_wide : &skin_set_value);
     if (skinp) lv_obj_clear_flag(grp_skin, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_skin, LV_OBJ_FLAG_HIDDEN);
     for (int i = 0; i < 3; i++) {
         if (skinp) lv_obj_clear_flag(cap_skin[i].cap, LV_OBJ_FLAG_HIDDEN);
         else lv_obj_add_flag(cap_skin[i].cap, LV_OBJ_FLAG_HIDDEN);
     }
-    if (wide || three || skinp) { lv_obj_add_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
+    if (wide || three || skinp || voicep) { lv_obj_add_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
     else { lv_obj_clear_flag(grp_value, LV_OBJ_FLAG_HIDDEN); }
     if (three) lv_obj_clear_flag(grp_sens, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_sens, LV_OBJ_FLAG_HIDDEN);
     for (int i = 0; i < NTOG; i++) {
@@ -1597,7 +1603,7 @@ static void page_show(void)
     if (page == P_RESET) lv_obj_clear_flag(grp_reset, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_reset, LV_OBJ_FLAG_HIDDEN);
     if (page == P_DISPLAY) lv_obj_clear_flag(grp_disp, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_disp, LV_OBJ_FLAG_HIDDEN);
     if (wide) lv_obj_clear_flag(cap_wide.cap, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(cap_wide.cap, LV_OBJ_FLAG_HIDDEN);
-    if (!wide && !three && !skinp) { lv_obj_clear_flag(cap_minus.cap, LV_OBJ_FLAG_HIDDEN); lv_obj_clear_flag(cap_plus.cap, LV_OBJ_FLAG_HIDDEN); }
+    if (!wide && !three && !skinp && !voicep) { lv_obj_clear_flag(cap_minus.cap, LV_OBJ_FLAG_HIDDEN); lv_obj_clear_flag(cap_plus.cap, LV_OBJ_FLAG_HIDDEN); }
     else { lv_obj_add_flag(cap_minus.cap, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cap_plus.cap, LV_OBJ_FLAG_HIDDEN); }
 
     if (page == P_CALLSIGN) {
@@ -1618,6 +1624,8 @@ static void page_show(void)
         lv_label_set_text(cap_wide.lbl, "TURN DISPLAY OFF");
         lv_label_set_text(cap_wide.sub, "TAP 5 TIMES TO WAKE");
         cap_style(&cap_wide, true);
+    } else if (page == P_VOICE) {
+        voice_page_refresh();
     } else if (page == P_SKIN) {
         skin_sel = cur_skin;
         carousel_refresh();
@@ -1893,13 +1901,469 @@ static void reset_tick(void)
     }
 }
 
+/* ================= VOICE (settings page 2) =================
+ * Learn the wearer's voice once (read a scrolling script for ~15 s, hearing the shift
+ * build up live), then ACCEPT, RETRY or ADJUST (PITCH / TONE by ear). AUTO VOICE turns the
+ * saved shift on; it stays unavailable until a learn has been accepted.
+ * The shift itself: firmware3/main/vshift.c (via the voice chain in voicefx.c). */
+
+static const char *SCRIPT[] = {
+    "Patrol seven, reporting in.", "Sector four is clear.", "Move along. Move along.",
+    "Let me see your identification.", "Close the blast doors!", "Set your blasters to stun.",
+    "We have them on the scanners.", "Squad, form up on me.", "Checkpoint is secure.",
+    "Hold your fire until my signal.",
+};
+#define NSCRIPT (int)(sizeof(SCRIPT) / sizeof(SCRIPT[0]))
+#define LEARN_SECS 15
+
+static int iround(float x) { return (int)floorf(x + 0.5f); }
+static const vs_target_t *voice_target(void) { return &VS_TROOPER; }
+
+/* ---- voice map: a pitch scale (70-320 Hz, log) with the target band, YOU and an arrow ---- */
+typedef struct {
+    int y, bx0, bx1;
+    lv_obj_t *you, *you_lbl, *to, *arrow, *name;
+    lv_point_t pts[2];
+} vmap_t;
+
+static int hz_x(float hz)
+{
+    if (hz < 70) hz = 70;
+    if (hz > 320) hz = 320;
+    return 40 + (int)(288.0f * logf(hz / 70.0f) / logf(320.0f / 70.0f));
+}
+
+static void vmap_build(lv_obj_t *p, vmap_t *m, int y)
+{
+    m->y = y;
+    box(p, 40, y - 3, 288, 6, C(0x1A1F24));
+    const vs_target_t *t = voice_target();
+    int x0 = hz_x(t->f0 * 0.89f), x1 = hz_x(t->f0 * 1.12f);           /* +-2 semitones */
+    lv_obj_t *band = box(p, x0, y - 9, x1 - x0, 18, C(0x214C26));
+    lv_obj_set_style_border_width(band, 1, 0);
+    lv_obj_set_style_border_color(band, COL_GREEN, 0);
+    m->bx0 = x0; m->bx1 = x1;
+    m->name = label(p, t->name, &lv_font_montserrat_12, COL_GREEN);   /* placed by vmap_set */
+    static const int TK[6] = {80, 120, 160, 200, 250, 300};
+    for (int i = 0; i < 6; i++) {
+        int x = hz_x(TK[i]);
+        box(p, x, y + 12, 1, 5, COL_FRAME);
+        lv_obj_t *l = label(p, "", &lv_font_montserrat_12, COL_LABEL);
+        lv_label_set_text_fmt(l, "%d", TK[i]);
+        center_at(l, x, y + 26);
+    }
+    m->pts[0] = m->pts[1] = (lv_point_t){0, y};
+    m->arrow = pline(p, m->pts, 2, COL_AMBER, 2);
+    m->to = box(p, 0, y - 5, 4, 10, COL_AMBER);
+    m->you = box(p, 0, y - 20, 3, 12, COL_AMBER);
+    m->you_lbl = label(p, "YOU", &lv_font_montserrat_12, COL_AMBER);
+}
+
+/* you_hz <= 0 hides the marker; to_hz <= 0 hides the arrow */
+static void vmap_set(vmap_t *m, float you_hz, float to_hz)
+{
+    bool you = you_hz > 0, to = you && to_hz > 0;
+    /* target name beside the band, on the side away from YOU, so the two never collide */
+    lv_obj_update_layout(m->name);
+    int nw = lv_obj_get_width(m->name), nh = lv_obj_get_height(m->name);
+    bool left = you && hz_x(you_hz) > (m->bx0 + m->bx1) / 2;
+    lv_obj_set_pos(m->name, left ? m->bx0 - 6 - nw : m->bx1 + 6, m->y - 12 - nh / 2);
+    lv_obj_t *o[2] = {m->you, m->you_lbl};
+    for (int i = 0; i < 2; i++) { if (you) lv_obj_clear_flag(o[i], LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(o[i], LV_OBJ_FLAG_HIDDEN); }
+    if (to) { lv_obj_clear_flag(m->arrow, LV_OBJ_FLAG_HIDDEN); lv_obj_clear_flag(m->to, LV_OBJ_FLAG_HIDDEN); }
+    else { lv_obj_add_flag(m->arrow, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(m->to, LV_OBJ_FLAG_HIDDEN); }
+    if (!you) return;
+    int x = hz_x(you_hz);
+    lv_obj_set_x(m->you, x - 1);
+    center_at(m->you_lbl, x, m->y - 31);
+    if (to) {
+        int x2 = hz_x(to_hz);
+        m->pts[0] = (lv_point_t){x, m->y};
+        m->pts[1] = (lv_point_t){x2, m->y};
+        lv_line_set_points(m->arrow, m->pts, 2);
+        lv_obj_set_x(m->to, x2 - 2);
+    }
+}
+
+static void fmt_shift(lv_obj_t *l, const char *name, int st100_or_tone10, bool tone)
+{
+    char sign = st100_or_tone10 < 0 ? '-' : '+';
+    int a = st100_or_tone10 < 0 ? -st100_or_tone10 : st100_or_tone10;
+    if (tone) lv_label_set_text_fmt(l, "%s  %c%d %%", name, sign, (a + 5) / 10);
+    else lv_label_set_text_fmt(l, "%s  %c%d.%d ST", name, sign, a / 100, (a % 100 + 5) / 10 % 10);
+}
+
+/* ---- settings page 2 ---- */
+static lv_obj_t *vp_status, *vp_pitch, *vp_tone, *vp_hint;
+static vmap_t vp_map;
+static cap_t cap_voice[3];                 /* AUTO | TARGET | LEARN */
+
+static void voice_page_refresh(void)
+{
+    bool learned = S.voice_learned;
+    lv_label_set_text(vp_status, !learned ? "NOT LEARNED" : S.voice_auto ? "ON" : "OFF");
+    lv_obj_set_style_text_color(vp_status, !learned ? COL_AMBER : S.voice_auto ? COL_GREEN : COL_LABEL, 0);
+    lv_obj_update_layout(vp_status);
+    lv_obj_set_pos(vp_status, 336 - lv_obj_get_width(vp_status), 72);
+    if (learned) {
+        float to = S.voice_f0 * powf(2.0f, S.voice_st100 / 1200.0f);
+        vmap_set(&vp_map, S.voice_f0, to);
+        fmt_shift(vp_pitch, "PITCH", S.voice_st100, false);
+        fmt_shift(vp_tone, "TONE", S.voice_tone10, true);
+        lv_obj_update_layout(vp_tone);
+        lv_obj_set_x(vp_tone, 336 - lv_obj_get_width(vp_tone));
+        lv_obj_clear_flag(vp_pitch, LV_OBJ_FLAG_HIDDEN); lv_obj_clear_flag(vp_tone, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(vp_hint, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        vmap_set(&vp_map, 0, 0);
+        lv_obj_add_flag(vp_pitch, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(vp_tone, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(vp_hint, LV_OBJ_FLAG_HIDDEN);
+    }
+    /* AUTO: green when on; dim + LEARN FIRST until a learn has been accepted */
+    cap_voice[0].accent = learned ? COL_GREEN : COL_DIM;
+    lv_label_set_text(cap_voice[0].sub, !learned ? "LEARN FIRST" : S.voice_auto ? "ON" : "OFF");
+    cap_style(&cap_voice[0], learned && S.voice_auto);
+    if (!learned) lv_obj_set_style_text_color(cap_voice[0].lbl, C(0x6A7076), 0);
+    cap_style(&cap_voice[2], !learned);                   /* LEARN glows until the first learn */
+}
+
+static void voice_open_learn(void);
+
+static void voice_page_show(bool on)
+{
+    if (on) lv_obj_clear_flag(grp_voice, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp_voice, LV_OBJ_FLAG_HIDDEN);
+    for (int i = 0; i < 3; i++) {
+        if (on) lv_obj_clear_flag(cap_voice[i].cap, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(cap_voice[i].cap, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+static void voice_key_cb(lv_event_t *e)
+{
+    int k = (int)(intptr_t)lv_event_get_user_data(e);
+    if (k == 0) {
+        if (!S.voice_learned) return;                      /* LEARN FIRST */
+        S.voice_auto = !S.voice_auto;
+        ui_platform_apply(&S);
+        voice_page_refresh();
+    } else if (k == 1) {
+        S.voice_target = 0;                                /* TROOPER (CLONE comes later) */
+    } else {
+        voice_open_learn();
+    }
+}
+
+static void build_voice_page(lv_obj_t *scr)
+{
+    grp_voice = group(scr);
+    lv_obj_t *t = label(grp_voice, "AUTO VOICE", &lv_font_montserrat_14, COL_TEXT);
+    lv_obj_set_pos(t, 32, 72);
+    vp_status = label(grp_voice, "", &lv_font_montserrat_14, COL_AMBER);
+    vmap_build(grp_voice, &vp_map, 128);
+    vp_pitch = label(grp_voice, "", &lv_font_montserrat_14, COL_LABEL);
+    lv_obj_set_pos(vp_pitch, 32, 168);
+    vp_tone = label(grp_voice, "", &lv_font_montserrat_14, COL_LABEL);
+    lv_obj_set_pos(vp_tone, 240, 168);
+    vp_hint = label(grp_voice, "Read the script once to learn your voice", &lv_font_montserrat_12, COL_LABEL);
+    center_at(vp_hint, 184, 175);
+    cap_voice[0] = make_cap(scr, 16, 204, 104, 104, "AUTO", "LEARN FIRST", COL_GREEN, false, voice_key_cb, LV_EVENT_CLICKED, (void *)0);
+    cap_voice[1] = make_cap(scr, 132, 204, 104, 104, "TROOPER", "TARGET", COL_BLUE, false, voice_key_cb, LV_EVENT_CLICKED, (void *)1);
+    lv_obj_set_style_text_font(cap_voice[1].lbl, &lv_font_montserrat_16, 0);
+    cap_voice[2] = make_cap(scr, 248, 204, 104, 104, "LEARN", "READ SCRIPT", COL_AMBER, false, voice_key_cb, LV_EVENT_CLICKED, (void *)2);
+}
+
+/* ---- learn / result / adjust screen ---- */
+enum { VS_READ, VS_RESULT, VS_ADJUST };
+static lv_obj_t *scr_voice, *vs_bg, *vs_title, *grp_read, *grp_res, *grp_adj;
+static lv_obj_t *rd_time, *rd_line[3], *rd_bar, *rd_prog[LEARN_SECS];
+static lv_obj_t *rs_you, *rs_tgt, *rs_pitch, *rs_tone, *rs_tname;
+static lv_obj_t *ad_row[2], *ad_mark[2], *ad_name[2], *ad_val[2], *ad_seg[2][10];
+static vmap_t rd_map, rs_map;
+static cap_t vk[3];                         /* bottom keys, relabelled per state */
+static cap_t ak[3];                         /* adjust: - | SELECT | + */
+static int vs_state, rd_line_i, ad_sel;
+static uint32_t rd_t0, rd_paused_ms, rd_pause_t;
+static bool rd_paused;
+static float rd_you, v_pr = 1, v_fr = 1, l_pr = 1, l_fr = 1, l_f0;
+
+static void vk_set(int i, const char *lbl, const char *sub, lv_color_t col, bool lit)
+{
+    vk[i].accent = col;
+    lv_label_set_text(vk[i].lbl, lbl);
+    lv_label_set_text(vk[i].sub, sub);
+    cap_style(&vk[i], lit);
+}
+
+static void voice_leave(void)
+{
+    vlearn_stop();
+    ui_platform_voice_monitor(false);
+    ui_platform_apply(&S);                  /* back to the saved shift (or none) */
+    open_settings(P_VOICE);
+}
+
+static void adj_refresh(void)
+{
+    float st = vs_ratio_to_semitones(v_pr), tn = (v_fr - 1.0f) * 100.0f;
+    for (int r = 0; r < 2; r++) {
+        bool on = r == ad_sel;
+        lv_obj_set_style_bg_opa(ad_row[r], on ? LV_OPA_COVER : LV_OPA_0, 0);
+        lv_obj_set_style_bg_opa(ad_mark[r], on ? LV_OPA_COVER : LV_OPA_0, 0);
+        lv_obj_set_style_text_color(ad_name[r], on ? COL_TEXT : COL_LABEL, 0);
+        lv_obj_set_style_text_color(ad_val[r], on ? COL_AMBER : COL_LABEL, 0);
+        if (r == 0) lv_label_set_text_fmt(ad_val[r], "%c%d.%d ST", st < 0 ? '-' : '+', (int)fabsf(st), ((int)(fabsf(st) * 10 + 0.5f)) % 10);
+        else lv_label_set_text_fmt(ad_val[r], "%c%d %%", tn < 0 ? '-' : '+', (int)(fabsf(tn) + 0.5f));
+        lv_obj_update_layout(ad_val[r]);
+        lv_obj_set_x(ad_val[r], 336 - lv_obj_get_width(ad_val[r]));
+        float f = r == 0 ? (st + 14.0f) / 20.0f : (tn + 28.0f) / 40.0f;      /* -14..+6 st, -28..+12 % */
+        for (int i = 0; i < 10; i++) {
+            lv_obj_set_style_bg_color(ad_seg[r][i], i < (int)(f * 10 + 0.5f) ? (on ? COL_AMBER : COL_LABEL) : COL_DIM, 0);
+        }
+    }
+    const char *nm = ad_sel ? "TONE" : "PITCH";
+    lv_label_set_text(ak[0].sub, nm);
+    lv_label_set_text(ak[2].sub, nm);
+    lv_label_set_text(ak[1].lbl, ad_sel ? "PITCH" : "TONE");
+    ui_platform_voice_live(true, v_pr, v_fr);
+}
+
+static void vs_show(int st)
+{
+    vs_state = st;
+    lv_obj_t *g[3] = {grp_read, grp_res, grp_adj};
+    for (int i = 0; i < 3; i++) { if (i == st) lv_obj_clear_flag(g[i], LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(g[i], LV_OBJ_FLAG_HIDDEN); }
+    for (int i = 0; i < 3; i++) { if (st == VS_ADJUST) lv_obj_clear_flag(ak[i].cap, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(ak[i].cap, LV_OBJ_FLAG_HIDDEN); }
+    lv_img_set_src(vs_bg, st == VS_ADJUST ? &skin_set_skin : &skin_set_voice_big);
+    if (st == VS_READ) {
+        lv_label_set_text(vs_title, "LEARN VOICE");
+        vk_set(0, "STOP", "CANCEL", COL_RED, false);
+        vk_set(1, "PAUSE", "HOLD", COL_TEXT, false);
+        vk_set(2, "DONE", "FINISH", COL_GREEN, false);
+    } else if (st == VS_RESULT) {
+        lv_label_set_text(vs_title, "VOICE LEARNED");
+        vk_set(0, "RETRY", "READ AGAIN", COL_AMBER, false);
+        vk_set(1, "ACCEPT", "SAVE", COL_GREEN, true);
+        vk_set(2, "ADJUST", "BY EAR", COL_BLUE, false);
+        const vs_target_t *t = voice_target();
+        lv_label_set_text_fmt(rs_you, "%d HZ", (int)(l_f0 + 0.5f));
+        center_at(rs_you, 100, 146);
+        lv_label_set_text_fmt(rs_tgt, "%d HZ", (int)(t->f0 + 0.5f));
+        center_at(rs_tgt, 268, 146);
+        lv_label_set_text(rs_tname, t->name);
+        center_at(rs_tname, 268, 122);
+        fmt_shift(rs_pitch, "PITCH", iround(vs_ratio_to_semitones(v_pr) * 100), false);
+        center_at(rs_pitch, 100, 182);
+        fmt_shift(rs_tone, "TONE", iround((v_fr - 1.0f) * 1000), true);
+        center_at(rs_tone, 268, 182);
+        vmap_set(&rs_map, l_f0, l_f0 * v_pr);
+        ui_platform_voice_live(true, v_pr, v_fr);
+    } else {
+        lv_label_set_text(vs_title, "ADJUST VOICE");
+        vk_set(0, LV_SYMBOL_LEFT, "BACK", COL_BLUE, false);
+        vk_set(1, "SAVE", "KEEP", COL_GREEN, true);
+        vk_set(2, "RESET", "AS LEARNED", COL_AMBER, false);
+        adj_refresh();
+    }
+    lv_obj_align(vk[0].lbl, LV_ALIGN_CENTER, 0, -10);
+    lv_obj_align(vk[0].sub, LV_ALIGN_CENTER, 0, 13);
+}
+
+static void rd_lines(void)
+{
+    for (int k = 0; k < 3; k++) {
+        int i = rd_line_i + k - 1;
+        lv_label_set_text(rd_line[k], i >= 0 ? SCRIPT[i % NSCRIPT] : "");
+        center_at(rd_line[k], 184, 106 + k * 36);
+    }
+}
+
+static void voice_start_reading(void)
+{
+    vlearn_start();
+    ui_platform_voice_live(false, 1, 1);            /* start from the raw voice */
+    ui_platform_voice_monitor(true);                /* hear yourself, even while muted */
+    rd_t0 = lv_tick_get();
+    rd_paused = false;
+    rd_paused_ms = 0;
+    rd_line_i = 0;
+    rd_you = 0;
+    v_pr = v_fr = 1;
+    rd_lines();
+    vmap_set(&rd_map, 0, 0);
+    vs_show(VS_READ);
+}
+
+static void voice_open_learn(void)
+{
+    voice_start_reading();
+    lv_scr_load(scr_voice);
+}
+
+static bool voice_finish(void)
+{
+    vs_learn_t r;
+    if (!vlearn_result(voice_target(), &r)) return false;
+    vlearn_stop();
+    l_pr = v_pr = r.pitch_ratio;
+    l_fr = v_fr = r.formant_ratio;
+    l_f0 = r.f0;
+    vs_show(VS_RESULT);
+    return true;
+}
+
+static void voice_save(void)
+{
+    S.voice_learned = 1;
+    S.voice_auto = 1;
+    S.voice_st100 = (int16_t)iround(vs_ratio_to_semitones(v_pr) * 100);
+    S.voice_tone10 = (int16_t)iround((v_fr - 1.0f) * 1000);
+    S.voice_f0 = (int16_t)iround(l_f0);
+    voice_leave();
+}
+
+static void vk_cb(lv_event_t *e)
+{
+    int k = (int)(intptr_t)lv_event_get_user_data(e);
+    if (vs_state == VS_READ) {
+        if (k == 0) voice_leave();
+        else if (k == 1) {
+            rd_paused = !rd_paused;
+            if (rd_paused) { vlearn_stop(); rd_pause_t = lv_tick_get(); vk_set(1, "RESUME", "CONTINUE", COL_AMBER, true); }
+            else { vlearn_resume(); rd_paused_ms += lv_tick_elaps(rd_pause_t); vk_set(1, "PAUSE", "HOLD", COL_TEXT, false); }
+        } else if (!voice_finish()) {
+            vk_set(2, "DONE", "KEEP READING", COL_GREEN, false);   /* not enough voice heard yet */
+        }
+    } else if (vs_state == VS_RESULT) {
+        if (k == 0) voice_start_reading();
+        else if (k == 1) voice_save();
+        else { ad_sel = 0; vs_show(VS_ADJUST); }
+    } else {
+        if (k == 0) vs_show(VS_RESULT);
+        else if (k == 1) voice_save();
+        else { v_pr = l_pr; v_fr = l_fr; adj_refresh(); }
+    }
+}
+
+static void ak_cb(lv_event_t *e)
+{
+    int k = (int)(intptr_t)lv_event_get_user_data(e);
+    if (k == 1) { ad_sel = !ad_sel; adj_refresh(); return; }
+    int dir = k == 0 ? -1 : 1;
+    if (ad_sel == 0) {
+        float st = vs_ratio_to_semitones(v_pr) + dir * 0.5f;
+        if (st < -14) st = -14;
+        if (st > 6) st = 6;
+        v_pr = vs_semitones_to_ratio(st);
+    } else {
+        v_fr += dir * 0.02f;
+        if (v_fr < 0.72f) v_fr = 0.72f;
+        if (v_fr > 1.12f) v_fr = 1.12f;
+    }
+    adj_refresh();
+}
+
+/* 100 ms while the learn screen is up: script, timer, live map, live shift */
+static void voice_tick(void)
+{
+    if (vs_state != VS_READ || rd_paused) return;
+    uint32_t ms = lv_tick_elaps(rd_t0) - rd_paused_ms;
+    int secs = (int)(ms / 1000);
+    lv_label_set_text_fmt(rd_time, "%d / %d S", secs > LEARN_SECS ? LEARN_SECS : secs, LEARN_SECS);
+    lv_obj_update_layout(rd_time);
+    lv_obj_set_x(rd_time, 336 - lv_obj_get_width(rd_time));
+    for (int i = 0; i < LEARN_SECS; i++)
+        lv_obj_set_style_bg_color(rd_prog[i], i < secs ? COL_AMBER : COL_DIM, 0);
+    int li = (int)(ms / 2200);                       /* a new line every 2.2 s */
+    if (li != rd_line_i) { rd_line_i = li; rd_lines(); }
+    float f0 = vshift_live_f0();
+    if (f0 > 0) rd_you = rd_you > 0 ? rd_you * 0.85f + f0 * 0.15f : f0;
+    vs_learn_t r;
+    if (vlearn_result(voice_target(), &r) && r.seconds > 2.5f) {   /* shift builds up as it learns */
+        v_pr = r.pitch_ratio;
+        v_fr = r.formant_ratio;
+        ui_platform_voice_live(true, v_pr, v_fr);
+        vmap_set(&rd_map, rd_you > 0 ? rd_you : r.f0, (rd_you > 0 ? rd_you : r.f0) * v_pr);
+    } else {
+        vmap_set(&rd_map, rd_you, 0);
+    }
+    if (secs >= LEARN_SECS && !voice_finish()) rd_t0 += 1000;   /* not enough yet: keep reading */
+}
+
+static void build_voice_screen(void)
+{
+    scr_voice = make_screen(&skin_set_voice_big, &vs_bg);
+    vs_title = label(scr_voice, "LEARN VOICE", &lv_font_montserrat_22, COL_TEXT);
+    lv_obj_set_pos(vs_title, 46, 15);
+    lv_obj_t *cnt = label(scr_voice, "", &lv_font_montserrat_16, COL_LABEL);
+    lv_label_set_text_fmt(cnt, "%d/%d", P_VOICE + 1, NPAGES);
+    lv_obj_update_layout(cnt);
+    lv_obj_set_pos(cnt, 322 - lv_obj_get_width(cnt), 19);
+    box(scr_voice, 46 + P_VOICE * 23, 46, 18, 4, COL_AMBER);
+
+    /* reading */
+    grp_read = group(scr_voice);
+    lv_obj_t *ra = label(grp_read, "READ ALOUD", &lv_font_montserrat_12, COL_LABEL);
+    lv_obj_set_pos(ra, 32, 70);
+    rd_time = label(grp_read, "", &lv_font_montserrat_12, COL_LABEL);
+    lv_obj_set_pos(rd_time, 290, 70);
+    rd_bar = box(grp_read, 24, 125, 320, 34, C(0x16202A));
+    box(grp_read, 24, 125, 4, 34, COL_AMBER);
+    for (int k = 0; k < 3; k++)
+        rd_line[k] = label(grp_read, "", k == 1 ? &lv_font_montserrat_20 : &lv_font_montserrat_14,
+                           k == 1 ? COL_TEXT : C(0x6A7076));
+    vmap_build(grp_read, &rd_map, 234);
+    for (int i = 0; i < LEARN_SECS; i++) rd_prog[i] = box(grp_read, 24 + i * 21, 284, 16, 4, COL_DIM);
+
+    /* result */
+    grp_res = group(scr_voice);
+    lv_obj_t *ln = label(grp_res, "LISTEN: YOUR VOICE IS LIVE", &lv_font_montserrat_14, COL_GREEN);
+    center_at(ln, 184, 84);
+    lv_obj_t *yl = label(grp_res, "YOU", &lv_font_montserrat_12, COL_LABEL);
+    center_at(yl, 100, 122);
+    rs_tname = label(grp_res, "", &lv_font_montserrat_12, COL_LABEL);
+    rs_you = label(grp_res, "", &lv_font_montserrat_22, COL_AMBER);
+    rs_tgt = label(grp_res, "", &lv_font_montserrat_22, COL_GREEN);
+    static lv_point_t arr[2] = {{156, 146}, {204, 146}};
+    pline(grp_res, arr, 2, COL_AMBER, 2);
+    static lv_point_t head[3] = {{198, 140}, {206, 146}, {198, 152}};
+    pline(grp_res, head, 3, COL_AMBER, 2);
+    rs_pitch = label(grp_res, "", &lv_font_montserrat_14, COL_TEXT);
+    rs_tone = label(grp_res, "", &lv_font_montserrat_14, COL_TEXT);
+    vmap_build(grp_res, &rs_map, 248);
+
+    /* adjust */
+    grp_adj = group(scr_voice);
+    static const char *NM[2] = {"PITCH", "TONE"}, *HINT[2] = {"HIGHER / LOWER", "SMALLER / BIGGER"};
+    for (int r = 0; r < 2; r++) {
+        int y = 92 + r * 54;
+        ad_row[r] = box(grp_adj, 24, y - 20, 320, 40, C(0x16202A));
+        ad_mark[r] = box(grp_adj, 24, y - 20, 4, 40, COL_AMBER);
+        ad_name[r] = label(grp_adj, NM[r], &lv_font_montserrat_16, COL_TEXT);
+        lv_obj_set_pos(ad_name[r], 40, y - 18);
+        lv_obj_t *h = label(grp_adj, HINT[r], &lv_font_montserrat_12, COL_LABEL);
+        lv_obj_set_pos(h, 40, y + 3);
+        ad_val[r] = label(grp_adj, "", &lv_font_montserrat_20, COL_AMBER);
+        lv_obj_set_y(ad_val[r], y - 12);
+        for (int i = 0; i < 10; i++) ad_seg[r][i] = box(grp_adj, 172 + i * 9, y - 4, 6, 8, COL_DIM);
+    }
+    lv_obj_t *lv_ = label(grp_adj, "LIVE: CHANGES ARE HEARD AT ONCE", &lv_font_montserrat_12, COL_GREEN);
+    center_at(lv_, 184, 178);
+    ak[0] = make_cap(scr_voice, 16, 204, 104, 104, LV_SYMBOL_MINUS, "PITCH", COL_BLUE, true, ak_cb, LV_EVENT_CLICKED, (void *)0);
+    ak[1] = make_cap(scr_voice, 132, 204, 104, 104, "TONE", "SELECT", COL_TEXT, false, ak_cb, LV_EVENT_CLICKED, (void *)1);
+    ak[2] = make_cap(scr_voice, 248, 204, 104, 104, LV_SYMBOL_PLUS, "PITCH", COL_BLUE, true, ak_cb, LV_EVENT_CLICKED, (void *)2);
+
+    for (int i = 0; i < 3; i++)
+        vk[i] = make_cap(scr_voice, 16 + i * 116, 320, 104, 114, "", "", COL_TEXT, false, vk_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+    vs_show(VS_READ);
+}
+
 static void build_settings(void)
 {
     scr_settings = make_screen(&skin_set_value, &set_bg);
     set_title = label(scr_settings, "", &lv_font_montserrat_22, COL_TEXT);
     lv_obj_set_pos(set_title, 46, 15);
     set_count = label(scr_settings, "", &lv_font_montserrat_16, COL_LABEL);
-    set_pip = box(scr_settings, 46, 46, 20, 4, COL_AMBER);
+    set_pip = box(scr_settings, 46, 46, 18, 4, COL_AMBER);
 
     /* value pages */
     grp_value = group(scr_settings);
@@ -1983,6 +2447,7 @@ static void build_settings(void)
         }
     }
     build_skin_page(scr_settings);
+    build_voice_page(scr_settings);
     make_cap(scr_settings, 16, 320, 104, 114, LV_SYMBOL_LEFT, "PREV", COL_BLUE, true, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
     make_cap(scr_settings, 132, 320, 104, 114, "MAIN", "EXIT", COL_TEXT, false, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)0);
     make_cap(scr_settings, 248, 320, 104, 114, LV_SYMBOL_RIGHT, "NEXT", COL_BLUE, true, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
@@ -2245,6 +2710,7 @@ static void lamp_cb(lv_timer_t *t)
         lv_obj_set_style_bg_opa(lock_bar, ph < 10 ? LV_OPA_COVER : LV_OPA_40, 0);
     }
     if (tick % 3 == 0) sensors_readout();
+    if (lv_scr_act() == scr_voice) voice_tick();
     if (lv_scr_act() == scr_settings && tick % 25 == 0) {                /* settings readout + lamps */
         int i = rnd() % 2;
         lv_label_set_text_static(g_tick[i], WORDS[rnd() % NWORDS]);
@@ -2265,6 +2731,7 @@ void ui_init(void)
     skin_callsign = mk_skin(skin_callsign_px);
     skin_set_sensors = mk_skin(skin_settings_sensors_px);
     skin_set_skin = mk_skin(skin_settings_skin_px);
+    skin_set_voice_big = mk_skin(skin_settings_voice_big_px);
 
     f_aureb13 = lv_tiny_ttf_create_data(aurebesh_ttf_start, aurebesh_ttf_len, 14);
     f_aureb12 = lv_tiny_ttf_create_data(aurebesh_ttf_start, aurebesh_ttf_len, 13);
@@ -2279,6 +2746,7 @@ void ui_init(void)
     f_aureng14 = lv_tiny_ttf_create_data(aureng_ttf_start, aureng_ttf_len, 14);
 
     build_settings();                       /* before skin_apply: the SKIN page owns the carousel */
+    build_voice_screen();
     skin_apply(S.skin);
     build_callsign();
     build_blank();

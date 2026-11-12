@@ -36,6 +36,7 @@ typedef struct {
 } vs_learn_t;
 void vlearn_start(void);
 void vlearn_stop(void);
+void vlearn_resume(void);                   /* continue after a stop, keeping what was heard */
 bool vlearn_running(void);
 /* current result so far for target t (valid when enough speech was heard) */
 bool vlearn_result(const vs_target_t *t, vs_learn_t *out);
