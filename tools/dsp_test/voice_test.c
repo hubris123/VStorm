@@ -47,13 +47,14 @@ int main(int argc, char **argv)
     bool ok = vlearn_result(&VS_TROOPER, &r);
     float pr = r.pitch_ratio, fr = r.formant_ratio;
     if (argc >= 5) { pr = atof(argv[3]); fr = atof(argv[4]); }
+    printf("swing %.1f st -> range x%.2f\n", r.swing, r.range);
     printf("learned: %s  f0 %.1f Hz  F1 %.0f  F2 %.0f  F3 %.0f  (%.1f s voiced)\n",
            ok ? "ok" : "NOT ENOUGH", r.f0, r.f1, r.f2, r.f3, r.seconds);
     printf("shift:   pitch x%.3f (%+.1f st)  tone x%.3f (%+.0f %%)\n", pr, vs_ratio_to_semitones(pr), fr, (fr - 1) * 100);
     /* pass 2: shift */
     vshift_init(16000);
     vshift_set(true, pr, fr);
-    float range = argc >= 6 ? atof(argv[5]) : 0.7f;          /* pitch swings kept (VOICE_RANGE) */
+    float range = argc >= 6 ? atof(argv[5]) : r.range;        /* learned swing factor */
     vshift_set_range(r.f0, range);
     clock_t t0 = clock();
     for (int i = 0; i < n; i++) y[i] = vshift_process(x[i]);

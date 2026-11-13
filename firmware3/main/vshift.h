@@ -14,6 +14,7 @@ typedef struct {
     const char *name;
     float f0;          /* typical speaking pitch, Hz */
     float f2, f3;      /* typical 2nd / 3rd formant, Hz (vocal-tract size) */
+    float swing;       /* pitch swing to aim for, semitones from low (10 %) to high (90 %) */
 } vs_target_t;
 
 /* measured from reference recordings (tools/voice_analysis/report.md) */
@@ -23,7 +24,7 @@ void vshift_init(int rate_hz);
 /* on = false: straight through, no delay */
 void vshift_set(bool on, float pitch_ratio, float formant_ratio);
 /* narrow the wearer's pitch swings around their learned pitch f0_ref (Hz): range 1.0 = keep
- * the natural swings, 0.7 = swings 30 % smaller (stays inside the target band, still lively).
+ * the natural swings, 0.7 = swings 30 % smaller, 1.5 = 50 % livelier (for monotone voices).
  * f0_ref 0 = off. */
 void vshift_set_range(float f0_ref, float range);
 float vshift_process(float x);              /* one sample in (-1..1) -> one sample out */
@@ -37,6 +38,9 @@ typedef struct {
     float f1, f2, f3;          /* median formants, Hz (0 = not enough data) */
     float seconds;             /* voiced speech heard */
     float pitch_ratio, formant_ratio;   /* the shift that lands them on the target */
+    float swing;               /* wearer's pitch swing, semitones (10 % -> 90 %) */
+    float range;               /* swing factor that gives them the target's swing: >1 livelier
+                                  (monotone voices), <1 calmer (very swingy voices) */
 } vs_learn_t;
 void vlearn_start(void);
 void vlearn_stop(void);

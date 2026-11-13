@@ -17,11 +17,15 @@
 #endif
 
 static int s_rate = 16000;
+#define POST_MAKEUP 1.3f             /* level back after the post-drive cut */
+#define RADIO_MAKEUP 2.0f            /* the thin band loses level: bring it back before the drive */
 static voicefx_params_t P = {70, 22, 15, 60, false, 1.0f, 1.0f, 0.0f, 1.0f, 0, 50};
 static float s_gain = 1.0f, s_knee = 0.7f;
 
 typedef struct { float b0, b1, b2, a1, a2, z1, z2; } biquad_t;
-static biquad_t s_hpf, s_lpf, s_round;          /* s_round: smooths the clipped tops (SOFT CLIP) */
+/* radio voicing, matched to the trooper references (tools/voice_analysis/compare.py):
+ * steep cut below ~700 Hz, presence lifts at 1.7 and 2.5 kHz, steep cut above ~3.2 kHz */
+static biquad_t s_hpf, s_lpf, s_hpf2, s_lpf2, s_pk1, s_pk2, s_round, s_post_hp, s_post_hp2, s_post_pk;          /* s_round: smooths the clipped tops (SOFT CLIP) */
 
 static void biquad_set(biquad_t *q, float f0, bool highpass)
 {
@@ -31,6 +35,15 @@ static void biquad_set(biquad_t *q, float f0, bool highpass)
     if (highpass) { q->b0 = (1 + c) / 2 / a0; q->b1 = -(1 + c) / a0; q->b2 = q->b0; }
     else          { q->b0 = (1 - c) / 2 / a0; q->b1 = (1 - c) / a0;  q->b2 = q->b0; }
     q->a1 = (-2 * c) / a0; q->a2 = (1 - alpha) / a0;
+    q->z1 = q->z2 = 0;
+}
+
+static void biquad_peak(biquad_t *q, float f0, float qf, float gain_db)
+{
+    float A = powf(10.0f, gain_db / 40.0f), w = 2.0f * (float)M_PI * f0 / s_rate;
+    float c = cosf(w), al = sinf(w) / (2.0f * qf), a0 = 1 + al / A;
+    q->b0 = (1 + al * A) / a0; q->b1 = -2 * c / a0; q->b2 = (1 - al * A) / a0;
+    q->a1 = -2 * c / a0; q->a2 = (1 - al / A) / a0;
     q->z1 = q->z2 = 0;
 }
 
@@ -70,12 +83,17 @@ static inline float soft_clip(float x)
 static inline float radio(float x)
 {
     float fx = P.fx / 100.0f;
-    x = biquad_run(&s_hpf, x);
-    x = biquad_run(&s_lpf, x);
-    x *= 1.0f + 7.0f * fx;                      /* drive 1x..8x */
+    x = biquad_run(&s_hpf2, biquad_run(&s_hpf, x));      /* thin: almost nothing below 700 Hz */
+    x = biquad_run(&s_pk2, biquad_run(&s_pk1, x));       /* bright: the helmet radio's presence */
+    x = biquad_run(&s_lpf2, biquad_run(&s_lpf, x));
+    x *= (1.0f + 7.0f * fx) * RADIO_MAKEUP;              /* drive 1x..8x */
     x = soft_clip(x);
     x = x - (x * x * x) / 3.0f;                 /* radio saturation curve */
     x = biquad_run(&s_round, x);                /* round the corners of clipped peaks */
+    /* after the drive, like a real radio: the distortion re-creates lows, so cut them again,
+     * and lift the presence band once more */
+    x = biquad_run(&s_post_hp2, biquad_run(&s_post_hp, x));
+    x = biquad_run(&s_post_pk, x) * POST_MAKEUP;
     float steps = 256.0f - 192.0f * fx;          /* bitcrush 8-bit .. ~6-bit */
     return (int32_t)(x * steps) / steps;
 }
@@ -83,8 +101,15 @@ static inline float radio(float x)
 void voicefx_init(int rate_hz)
 {
     s_rate = rate_hz;
-    biquad_set(&s_hpf, 300.0f, true);
-    biquad_set(&s_lpf, 3000.0f, false);
+    biquad_set(&s_hpf, 700.0f, true);
+    biquad_set(&s_hpf2, 700.0f, true);
+    biquad_set(&s_lpf, 3200.0f, false);
+    biquad_set(&s_lpf2, 3200.0f, false);
+    biquad_peak(&s_pk1, 1700.0f, 1.0f, 6.0f);
+    biquad_peak(&s_pk2, 2500.0f, 1.4f, 4.0f);
+    biquad_set(&s_post_hp, 750.0f, true);
+    biquad_set(&s_post_hp2, 750.0f, true);
+    biquad_peak(&s_post_pk, 2000.0f, 0.8f, 5.0f);
     s_vox = VOX_IDLE; s_env = 0; s_hang = 0;
     vshift_init(rate_hz);
     vshift_set(P.shift_on, P.pitch_ratio, P.formant_ratio);

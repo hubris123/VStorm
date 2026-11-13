@@ -68,7 +68,7 @@ static voicefx_params_t fx_from(const ui_settings_t *s)
         p.pitch_ratio = powf(2.0f, s->voice_st100 / 1200.0f);
         p.formant_ratio = 1.0f + s->voice_tone10 / 1000.0f;
         p.f0_ref = s->voice_f0;
-        p.range = VOICE_RANGE;
+        p.range = s->voice_range100 ? s->voice_range100 / 100.0f : VOICE_RANGE;
     }
     return p;
 }
@@ -83,12 +83,12 @@ void ui_platform_apply(const ui_settings_t *s)
     js_settings_save(s, sizeof(*s));
 }
 
-void ui_platform_voice_live(bool on, float pitch_ratio, float formant_ratio, float f0_ref)
+void ui_platform_voice_live(bool on, float pitch_ratio, float formant_ratio, float f0_ref, float range)
 {
     voicefx_params_t p = fx_from(&s_last);
     if (on) {
         p.shift_on = true; p.pitch_ratio = pitch_ratio; p.formant_ratio = formant_ratio;
-        p.f0_ref = f0_ref; p.range = VOICE_RANGE;
+        p.f0_ref = f0_ref; p.range = range;
     }
     sim_audio_params(s_last.volume, s_last.brightness, &p);
 }

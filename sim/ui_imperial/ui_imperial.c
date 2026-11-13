@@ -2232,7 +2232,7 @@ static void build_voice_page(lv_obj_t *scr)
 enum { VS_READ, VS_RESULT, VS_ADJUST };
 static lv_obj_t *scr_voice, *vs_bg, *vs_title, *grp_read, *grp_res, *grp_adj;
 static lv_obj_t *rd_time, *rd_line[3], *rd_bar, *rd_prog[LEARN_SECS];
-static lv_obj_t *rs_you, *rs_tgt, *rs_pitch, *rs_tone, *rs_tname;
+static lv_obj_t *rs_you, *rs_tgt, *rs_pitch, *rs_tone, *rs_tname, *rs_swing;
 static lv_obj_t *ad_row[2], *ad_mark[2], *ad_name[2], *ad_val[2], *ad_seg[2][10];
 static vmap_t rd_map, rs_map;
 static cap_t vk[3];                         /* bottom keys, relabelled per state */
@@ -2244,7 +2244,7 @@ static float rd_hst[LOCK_N], rd_htn[LOCK_N];
 
 static uint32_t rd_t0, rd_paused_ms, rd_pause_t;
 static bool rd_paused;
-static float rd_you, v_pr = 1, v_fr = 1, l_pr = 1, l_fr = 1, l_f0;
+static float rd_you, v_pr = 1, v_fr = 1, l_pr = 1, l_fr = 1, l_f0, l_rg = 1;
 
 static void vk_set(int i, const char *lbl, const char *sub, lv_color_t col, bool lit)
 {
@@ -2285,7 +2285,7 @@ static void adj_refresh(void)
     lv_label_set_text(ak[2].sub, nm);
     lv_label_set_text(ak[1].lbl, ad_sel ? "PITCH" : "TONE");
     for (int i = 0; i < 3; i++) cap_fit(&ak[i]);
-    ui_platform_voice_live(true, v_pr, v_fr, l_f0);
+    ui_platform_voice_live(true, v_pr, v_fr, l_f0, l_rg);
 }
 
 static void vs_show(int st)
@@ -2316,8 +2316,13 @@ static void vs_show(int st)
         center_at(rs_pitch, 100, 182);
         fmt_shift(rs_tone, "TONE", iround((v_fr - 1.0f) * 1000), true);
         center_at(rs_tone, 268, 182);
+        int sw = iround((l_rg - 1.0f) * 100);            /* pitch swing: livelier / calmer */
+        if (sw > 2) lv_label_set_text_fmt(rs_swing, "LIVELIER  +%d %%", sw);
+        else if (sw < -2) lv_label_set_text_fmt(rs_swing, "CALMER  %d %%", sw);
+        else lv_label_set_text(rs_swing, "");
+        center_at(rs_swing, 184, 204);
         vmap_set(&rs_map, l_f0, l_f0 * v_pr);
-        ui_platform_voice_live(true, v_pr, v_fr, l_f0);
+        ui_platform_voice_live(true, v_pr, v_fr, l_f0, l_rg);
     } else {
         lv_label_set_text(vs_title, "ADJUST VOICE");
         vk_set(0, LV_SYMBOL_LEFT, "BACK", COL_BLUE, false);
@@ -2341,7 +2346,7 @@ static void rd_lines(void)
 static void voice_start_reading(void)
 {
     vlearn_start();
-    ui_platform_voice_live(false, 1, 1, 0);         /* start from the raw voice */
+    ui_platform_voice_live(false, 1, 1, 0, 1);         /* start from the raw voice */
     ui_platform_voice_monitor(true);                /* hear yourself, even while muted */
     rd_t0 = lv_tick_get();
     rd_paused = false;
@@ -2370,6 +2375,7 @@ static bool voice_finish(void)
     l_pr = v_pr = r.pitch_ratio;
     l_fr = v_fr = r.formant_ratio;
     l_f0 = r.f0;
+    l_rg = r.range;                                  /* monotone voices: livelier swings */
     int n = rd_nh < LOCK_N ? rd_nh : LOCK_N;
     if (n >= 3) {                                    /* average the last 3 s: lands closer */
         float st = 0, tn = 0;
@@ -2389,6 +2395,7 @@ static void voice_save(void)
     S.voice_st100 = (int16_t)iround(vs_ratio_to_semitones(v_pr) * 100);
     S.voice_tone10 = (int16_t)iround((v_fr - 1.0f) * 1000);
     S.voice_f0 = (int16_t)iround(l_f0);
+    S.voice_range100 = (int16_t)iround(l_rg * 100);
     voice_leave();
 }
 
@@ -2478,7 +2485,7 @@ static void voice_tick(void)
     if (ok && r.seconds > 1.5f) {                                   /* shift builds up as it learns */
         v_pr = r.pitch_ratio;
         v_fr = r.formant_ratio;
-        ui_platform_voice_live(true, v_pr, v_fr, r.f0);
+        ui_platform_voice_live(true, v_pr, v_fr, r.f0, r.range);
         vmap_set(&rd_map, rd_you > 0 ? rd_you : r.f0, (rd_you > 0 ? rd_you : r.f0) * v_pr);
     } else {
         vmap_set(&rd_map, rd_you, 0);
@@ -2541,7 +2548,8 @@ static void build_voice_screen(void)
     pline(grp_res, head, 3, COL_AMBER, 2);
     rs_pitch = label(grp_res, "", &lv_font_montserrat_14, COL_TEXT);
     rs_tone = label(grp_res, "", &lv_font_montserrat_14, COL_TEXT);
-    vmap_build(grp_res, &rs_map, 248);
+    rs_swing = label(grp_res, "", &lv_font_montserrat_12, COL_GREEN);
+    vmap_build(grp_res, &rs_map, 260);
 
     /* adjust */
     grp_adj = group(scr_voice);

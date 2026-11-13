@@ -21,7 +21,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-const vs_target_t VS_TROOPER = {"TROOPER", 125.0f, 1496.0f, 2335.0f};
+const vs_target_t VS_TROOPER = {"TROOPER", 125.0f, 1496.0f, 2335.0f, 6.0f};
 
 #define N        4096                 /* ring sizes (power of two) */
 #define M        (N - 1)
@@ -81,6 +81,20 @@ void vlearn_resume(void) { s_learn = true; }
 bool vlearn_running(void) { return s_learn; }
 
 static void hist_add(uint16_t *h, int nb, int b) { if (b >= 0 && b < nb && h[b] < 65535) h[b]++; }
+
+/* q-quantile of a histogram, in (fractional) bins */
+static float hist_quantile(const uint16_t *h, int nb, float q)
+{
+    uint32_t tot = 0;
+    for (int i = 0; i < nb; i++) tot += h[i];
+    if (!tot) return 0;
+    float want = tot * q, acc = 0;
+    for (int i = 0; i < nb; i++) {
+        if (h[i] && acc + h[i] >= want) return i + (want - acc) / h[i];
+        acc += h[i];
+    }
+    return nb;
+}
 
 static float hist_median(const uint16_t *h, int nb, uint32_t *count)
 {
@@ -181,6 +195,10 @@ bool vlearn_result(const vs_target_t *t, vs_learn_t *o)
     if (fr > expect * 1.1f) fr = expect * 1.1f;
     o->pitch_ratio = pr < 0.45f ? 0.45f : pr > 1.35f ? 1.35f : pr;
     o->formant_ratio = fr < 0.72f ? 0.72f : fr > 1.12f ? 1.12f : fr;
+    /* pitch swing (quarter-semitone bins): monotone voices get livelier, swingy ones calmer */
+    o->swing = (hist_quantile(h_f0, F0_BINS, 0.9f) - hist_quantile(h_f0, F0_BINS, 0.1f)) / 4.0f;
+    float rg = o->swing > 0.5f ? t->swing / o->swing : 1.8f;
+    o->range = rg < 0.7f ? 0.7f : rg > 1.8f ? 1.8f : rg;
     return true;
 }
 
@@ -279,10 +297,10 @@ static void place_grain(void)
         OUT[(c + j) & M] += w * in_at((double)a + j * s_fr);
     }
     float pr = s_pr;
-    if (s_voiced && s_ref > 0 && s_range < 0.999f) {              /* pull swings toward the centre */
+    if (s_voiced && s_ref > 0 && (s_range < 0.999f || s_range > 1.001f)) {   /* narrow or widen swings */
         float k = powf((s_rate / T) / s_ref, s_range - 1.0f);
-        if (k < 0.7f) k = 0.7f;
-        if (k > 1.4f) k = 1.4f;
+        if (k < 0.6f) k = 0.6f;
+        if (k > 1.6f) k = 1.6f;
         pr *= k;
     }
     sm += s_voiced ? T / pr : T;
@@ -316,7 +334,7 @@ float vshift_live_f0(void) { return s_live_f0; }
 void vshift_set_range(float f0_ref, float range)
 {
     s_ref = f0_ref;
-    s_range = range < 0.3f ? 0.3f : range > 1.0f ? 1.0f : range;
+    s_range = range < 0.3f ? 0.3f : range > 1.8f ? 1.8f : range;
 }
 
 float vshift_process(float x)
