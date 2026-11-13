@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VStorm Voice Recorder</title>
+<style>
+/* Raw voice recorder for tuning the VStorm voice chain. Open this file directly in Chrome
+   (double-click). It records the selected mic with echo cancellation, noise suppression and
+   auto gain OFF, and saves a 16-bit mono WAV at the mic's own sample rate. Nothing is sent
+   anywhere: the file is saved to your computer. */
+:root {
+  --bg: #0d0f11; --panel: #15191d; --line: #2a3138; --ink: #d9dde0; --mute: #8b949c;
+  --red: #c4262e; --amber: #e0a526; --green: #3c8a44; --blue: #459fc2;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 28px 16px 48px; display: grid; gap: 18px; }
+h1 { margin: 0; font-size: 26px; letter-spacing: .02em; }
+.sub { margin: 0; color: var(--mute); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+.card h2 { margin: 0; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+select, button { font: inherit; color: var(--ink); background: #1d2328; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+select { width: 100%; }
+button { cursor: pointer; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.rec { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; min-width: 150px; }
+button.save { background: var(--green); border-color: var(--green); color: #fff; font-weight: 600; }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.meter { height: 16px; background: #0b0e11; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; position: relative; }
+.meter i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--green); transition: width .05s linear; }
+.meter b { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--amber); left: 0; }
+.status { font-variant-numeric: tabular-nums; color: var(--mute); }
+.warn { color: var(--amber); min-height: 1.4em; margin: 0; }
+.time { font: 600 28px/1 ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+ol { margin: 0; padding-left: 22px; }
+ol li { padding: 2px 0; }
+.note { color: var(--mute); font-size: 13px; margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>VStorm Voice Recorder</h1>
+    <p class="sub">Records your mic raw (no echo cancellation, noise suppression or auto gain) and saves a WAV for voice tuning.</p>
+  </header>
+
+  <section class="card">
+    <h2>1 · Microphone</h2>
+    <select id="mic" aria-label="Microphone"><option>Click "Allow mic" first</option></select>
+    <div class="row"><button id="allow">Allow mic</button><span class="status" id="micInfo"></span></div>
+  </section>
+
+  <section class="card">
+    <h2>2 · Level check</h2>
+    <div class="meter" aria-label="Input level"><i id="lvl"></i><b id="pk"></b></div>
+    <p class="warn" id="warn">Talk normally: the bar should reach the middle, never the end.</p>
+  </section>
+
+  <section class="card">
+    <h2>3 · Record (30-60 s)</h2>
+    <p class="note">Hand's width from the mic, quiet room. Leave a second of silence at the start and end. Read these, then a few sentences of your own: some calm, some like giving an order.</p>
+    <ol>
+      <li>Patrol seven, reporting in.</li>
+      <li>Sector four is clear.</li>
+      <li>Move along. Move along.</li>
+      <li>Let me see your identification.</li>
+      <li>Close the blast doors!</li>
+      <li>Set your blasters to stun.</li>
+      <li>We have them on the scanners.</li>
+      <li>Squad, form up on me.</li>
+    </ol>
+    <div class="row">
+      <button class="rec" id="rec" disabled>● Record</button>
+      <span class="time" id="time">0:00</span>
+      <span class="status" id="clipInfo"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>4 · Save</h2>
+    <div class="row"><button class="save" id="save" disabled>Save WAV</button><span class="status" id="fileInfo"></span></div>
+    <p class="note">Then attach the saved file in the chat.</p>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ac, src, proc, stream, chunks = [], recording = false, t0 = 0, rate = 48000, clipCount = 0, peakHold = 0;
+
+async function listMics() {
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+  const sel = $('mic'), keep = sel.value;
+  sel.innerHTML = '';
+  for (const d of devs) {
+    const o = document.createElement('option');
+    o.value = d.deviceId; o.textContent = d.label || 'Microphone';
+    sel.appendChild(o);
+  }
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+}
+
+async function openMic() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  if (ac) await ac.close();
+  const id = $('mic').value;
+  stream = await navigator.mediaDevices.getUserMedia({ audio: {
+    deviceId: id && id !== 'Click "Allow mic" first' ? { exact: id } : undefined,
+    echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } });
+  ac = new AudioContext();
+  rate = ac.sampleRate;
+  src = ac.createMediaStreamSource(stream);
+  proc = ac.createScriptProcessor(2048, 1, 1);
+  proc.onaudioprocess = e => {
+    const x = e.inputBuffer.getChannelData(0);
+    let pk = 0, ss = 0;
+    for (let i = 0; i < x.length; i++) { const a = Math.abs(x[i]); if (a > pk) pk = a; ss += x[i] * x[i]; }
+    if (recording) { chunks.push(new Float32Array(x)); if (pk >= 0.99) clipCount++; }
+    const rms = Math.sqrt(ss / x.length);
+    $('lvl').style.width = Math.min(100, rms * 400) + '%';
+    peakHold = Math.max(pk, peakHold * 0.97);
+    $('pk').style.left = Math.min(99, peakHold * 100) + '%';
+    $('warn').textContent = pk >= 0.99 ? 'Too loud: clipping. Move back a little or turn the mic down.'
+      : (rms < 0.004 && recording ? 'Very quiet: move closer to the mic.' : 'Talk normally: the bar should reach the middle, never the end.');
+  };
+  src.connect(proc); proc.connect(ac.destination);   // processor needs a sink; it outputs silence
+  const tr = stream.getAudioTracks()[0], st = tr.getSettings();
+  $('micInfo').textContent = `${rate / 1000} kHz` + (st.echoCancellation || st.noiseSuppression || st.autoGainControl ? ' · note: browser kept some processing on' : ' · raw');
+  $('rec').disabled = false;
+}
+
+$('allow').onclick = async () => {
+  try { await openMic(); await listMics(); $('allow').textContent = 'Mic ready'; }
+  catch (e) { $('micInfo').textContent = 'Could not open the mic: ' + e.message + ' (open this file directly in Chrome and allow the mic)'; }
+};
+$('mic').onchange = () => openMic().catch(e => $('micInfo').textContent = e.message);
+
+let timer;
+$('rec').onclick = async () => {
+  if (!recording) {
+    if (ac.state !== 'running') await ac.resume();
+    chunks = []; clipCount = 0; recording = true; t0 = performance.now();
+    $('rec').textContent = '■ Stop'; $('save').disabled = true; $('fileInfo').textContent = ''; $('clipInfo').textContent = '';
+    timer = setInterval(() => {
+      const s = Math.floor((performance.now() - t0) / 1000);
+      $('time').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    }, 200);
+  } else {
+    recording = false; clearInterval(timer);
+    $('rec').textContent = '● Record again';
+    const n = chunks.reduce((a, c) => a + c.length, 0);
+    $('save').disabled = n === 0;
+    $('fileInfo').textContent = `${(n / rate).toFixed(1)} s ready`;
+    $('clipInfo').textContent = clipCount ? `clipped ${clipCount}×: consider re-recording a little quieter` : 'no clipping';
+  }
+};
+
+function wav(samples, sr) {
+  const n = samples.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) { const s = Math.max(-1, Math.min(1, samples[i])); v.setInt16(44 + i * 2, s < 0 ? s * 32768 : s * 32767, true); }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+$('save').onclick = () => {
+  const n = chunks.reduce((a, c) => a + c.length, 0), all = new Float32Array(n);
+  let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  const d = new Date(), stamp = d.toISOString().slice(0, 19).replace(/[-:T]/g, '').replace(/^(\d{8})/, '$1_');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(wav(all, rate));
+  a.download = `vstorm_voice_${stamp}.wav`;
+  document.body.appendChild(a); a.click(); a.remove();
+  $('fileInfo').textContent = `saved ${a.download}`;
+};
+</script>
+</body>
+</html>
