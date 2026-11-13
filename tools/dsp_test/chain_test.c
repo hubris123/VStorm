@@ -39,7 +39,9 @@ int main(int argc, char **argv)
     float *x = read_wav(argv[1], &n);
     if (!x) return 1;
     float *y = calloc(2 * n + 16000, sizeof(float));
-    voicefx_params_t p = {70, 22, 15, 60, false, 1.0f, 1.0f};
+    int gain = argc > 3 ? atoi(argv[3]) : 0;                 /* MIC GAIN dB */
+    voicefx_params_t p = {70, 22, 15, 60, false, 1.0f, 1.0f, 0.0f, 1.0f, gain, 50};
+    if (argc > 4) voicefx_tailcut(atoi(argv[4]) != 0);
     bool c;
     /* learn while listening (as on the VOICE page) */
     voicefx_init(16000); voicefx_set(&p);
@@ -48,13 +50,14 @@ int main(int argc, char **argv)
     vlearn_stop();
     vs_learn_t r;
     vlearn_result(&VS_TROOPER, &r);
-    printf("learned f0 %.0f Hz, F3 %.0f -> pitch %+.1f st, tone %+.0f %%\n", r.f0, r.f3,
-           vs_ratio_to_semitones(r.pitch_ratio), (r.formant_ratio - 1) * 100);
+    printf("learned f0 %.0f Hz, F3 %.0f, swing %.1f st -> pitch %+.1f st, tone %+.0f %%, swing x%.2f\n", r.f0, r.f3,
+           r.swing, vs_ratio_to_semitones(r.pitch_ratio), (r.formant_ratio - 1) * 100, r.range);
     /* before: radio effect only */
     voicefx_init(16000); voicefx_set(&p);
     for (int i = 0; i < n; i++) y[i] = voicefx_process(x[i] * 32767.0f, &c) / 32768.0f;
     /* after: with the learned shift */
     p.shift_on = true; p.pitch_ratio = r.pitch_ratio; p.formant_ratio = r.formant_ratio;
+    p.f0_ref = r.f0; p.range = r.range;
     voicefx_init(16000); voicefx_set(&p);
     for (int i = 0; i < n; i++) y[n + 16000 + i] = voicefx_process(x[i] * 32767.0f, &c) / 32768.0f;
     wav_write(argv[2], y, 2 * n + 16000, 16000);

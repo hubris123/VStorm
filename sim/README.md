@@ -90,7 +90,7 @@ canvases belong in PSRAM.
 ## Voice chain (fw3i)
 
 The fw3i build runs the new voice chain from `firmware3/main/` (shared with the device):
-`voicefx.c` (voice shift -> radio voicing matched to the trooper references: steep cuts below ~700 Hz and above ~3.2 kHz with presence lifts at 1.7 / 2.5 kHz, drive, bitcrush, a second low cut + presence lift after the drive, static; VOX gate; checked with `tools/voice_analysis/compare.py`),
+`voicefx.c` (mic gain + soft clip -> tail cut (room echo after words) -> voice shift -> radio voicing matched on a real voice to the trooper references: steep cuts below ~700 Hz and above ~3 kHz before and after the drive, near-flat presence trims, bitcrush, static; VOX gate; checked with `tools/voice_analysis/compare.py`),
 `vshift.c` (learned pitch + tone shift: real-time PSOLA with per-grain resampling, 32 ms
 latency while on; learning = median pitch + LPC formants -> ratios onto the target) and
 `keysnd.c` (synthesised radio key-up / key-down sounds, six kinds). The VOICE page (settings

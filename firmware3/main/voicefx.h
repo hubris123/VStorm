@@ -25,4 +25,5 @@ void voicefx_init(int rate_hz);
 void voicefx_set(const voicefx_params_t *p);
 /* one mic sample (Q15 scale as float) -> one output sample (Q15); *clipped on saturation */
 int16_t voicefx_process(float x_q15, bool *clipped);
-bool voicefx_keyed(void);      /* VOX gate open (incl. hang and key sounds) */
+bool voicefx_keyed(void);
+void voicefx_tailcut(bool on);   /* cut room echo after words (default on) */      /* VOX gate open (incl. hang and key sounds) */

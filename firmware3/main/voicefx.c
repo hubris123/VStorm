@@ -17,15 +17,18 @@
 #endif
 
 static int s_rate = 16000;
+#define POST_LP 3000.0f
 #define POST_MAKEUP 1.3f             /* level back after the post-drive cut */
 #define RADIO_MAKEUP 2.0f            /* the thin band loses level: bring it back before the drive */
 static voicefx_params_t P = {70, 22, 15, 60, false, 1.0f, 1.0f, 0.0f, 1.0f, 0, 50};
 static float s_gain = 1.0f, s_knee = 0.7f;
 
 typedef struct { float b0, b1, b2, a1, a2, z1, z2; } biquad_t;
-/* radio voicing, matched to the trooper references (tools/voice_analysis/compare.py):
- * steep cut below ~700 Hz, presence lifts at 1.7 and 2.5 kHz, steep cut above ~3.2 kHz */
-static biquad_t s_hpf, s_lpf, s_hpf2, s_lpf2, s_pk1, s_pk2, s_round, s_post_hp, s_post_hp2, s_post_pk;          /* s_round: smooths the clipped tops (SOFT CLIP) */
+/* radio voicing, matched on a real voice to the trooper references (tools/voice_analysis/
+ * compare.py): steep cuts below ~700 Hz and above ~3 kHz before the drive, and again after it
+ * (the distortion re-creates lows and highs); the 1.7 / 2.5 / 2 kHz bands are trims, nearly
+ * flat - a real voice is brighter than the synthetic test voices this was first tuned on */
+static biquad_t s_hpf, s_lpf, s_hpf2, s_lpf2, s_pk1, s_pk2, s_round, s_post_hp, s_post_hp2, s_post_pk, s_post_lp;          /* s_round: smooths the clipped tops (SOFT CLIP) */
 
 static void biquad_set(biquad_t *q, float f0, bool highpass)
 {
@@ -66,7 +69,12 @@ typedef enum { VOX_IDLE, VOX_OPEN, VOX_KEYDOWN } vox_t;
 static vox_t s_vox = VOX_IDLE;
 static float s_env;
 static int s_hang;
-static int s_open_n, s_duck;        /* samples since the gate opened; key-up head to wait out */
+static int s_open_n, s_duck;
+/* tail cut: room echo after each word sits far below the word; the drive would bring it up
+ * into an obvious reverb, so turn the signal down once it falls well below the word's level */
+static float s_tc_env, s_tc_peak, s_tc_gain = 1.0f;
+static bool s_tailcut = true;
+void voicefx_tailcut(bool on) { s_tailcut = on; }        /* samples since the gate opened; key-up head to wait out */
 #define VOX_HANG (s_rate * 35 / 100)            /* 350 ms */
 
 /* SOFT CLIP: straight up to the knee, then a smooth curve that approaches full scale, so
@@ -90,10 +98,10 @@ static inline float radio(float x)
     x = soft_clip(x);
     x = x - (x * x * x) / 3.0f;                 /* radio saturation curve */
     x = biquad_run(&s_round, x);                /* round the corners of clipped peaks */
-    /* after the drive, like a real radio: the distortion re-creates lows, so cut them again,
-     * and lift the presence band once more */
+    /* after the drive, like a real radio: the distortion re-creates lows and highs, so cut
+     * them again (and trim the presence band) */
     x = biquad_run(&s_post_hp2, biquad_run(&s_post_hp, x));
-    x = biquad_run(&s_post_pk, x) * POST_MAKEUP;
+    x = biquad_run(&s_post_lp, biquad_run(&s_post_pk, x)) * POST_MAKEUP;
     float steps = 256.0f - 192.0f * fx;          /* bitcrush 8-bit .. ~6-bit */
     return (int32_t)(x * steps) / steps;
 }
@@ -103,13 +111,14 @@ void voicefx_init(int rate_hz)
     s_rate = rate_hz;
     biquad_set(&s_hpf, 700.0f, true);
     biquad_set(&s_hpf2, 700.0f, true);
-    biquad_set(&s_lpf, 3200.0f, false);
-    biquad_set(&s_lpf2, 3200.0f, false);
-    biquad_peak(&s_pk1, 1700.0f, 1.0f, 6.0f);
-    biquad_peak(&s_pk2, 2500.0f, 1.4f, 4.0f);
+    biquad_set(&s_lpf, 3000.0f, false);
+    biquad_set(&s_lpf2, 3000.0f, false);
+    biquad_peak(&s_pk1, 1700.0f, 1.0f, 1.0f);
+    biquad_peak(&s_pk2, 2500.0f, 1.4f, -2.0f);
     biquad_set(&s_post_hp, 750.0f, true);
     biquad_set(&s_post_hp2, 750.0f, true);
-    biquad_peak(&s_post_pk, 2000.0f, 0.8f, 5.0f);
+    biquad_peak(&s_post_pk, 2000.0f, 0.8f, -1.0f);
+    biquad_set(&s_post_lp, POST_LP, false);
     s_vox = VOX_IDLE; s_env = 0; s_hang = 0;
     vshift_init(rate_hz);
     vshift_set(P.shift_on, P.pitch_ratio, P.formant_ratio);
@@ -133,6 +142,18 @@ bool voicefx_keyed(void) { return s_vox != VOX_IDLE || keysnd_active(); }
 int16_t voicefx_process(float x_q15, bool *clipped)
 {
     float x = soft_clip(x_q15 / 32768.0f * s_gain);   /* MIC GAIN, rounded instead of clipped */
+    if (s_tailcut) {
+        float a = fabsf(x);
+        s_tc_env += (a - s_tc_env) * (a > s_tc_env ? 0.02f : 0.004f);       /* ~3 ms up, ~15 ms down */
+        if (s_tc_env > s_tc_peak) s_tc_peak = s_tc_env;
+        else s_tc_peak *= 0.9997f;                                          /* word level, ~200 ms memory */
+        /* below 1/6 of the word level (-16 dB): 2:1 downward expansion, so a tail
+         * 30 dB down ends up 44 dB down */
+        float rel = s_tc_peak > 1e-5f ? s_tc_env / (s_tc_peak * 0.16f) : 1.0f;
+        float g = rel >= 1.0f ? 1.0f : rel;
+        s_tc_gain += (g - s_tc_gain) * (g < s_tc_gain ? 0.003f : 0.05f);    /* close smoothly, open fast */
+        x *= s_tc_gain;
+    }
     float v = vshift_process(x);                 /* shifted voice (32 ms late when on) */
 
     float a = fabsf(x);                          /* the gate listens to the raw mic */

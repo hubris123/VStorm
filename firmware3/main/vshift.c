@@ -21,7 +21,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-const vs_target_t VS_TROOPER = {"TROOPER", 125.0f, 1496.0f, 2335.0f, 6.0f};
+const vs_target_t VS_TROOPER = {"TROOPER", 125.0f, 1496.0f, 2335.0f, 9.0f};   /* swing: on this tracker's scale */
 
 #define N        4096                 /* ring sizes (power of two) */
 #define M        (N - 1)
@@ -196,7 +196,12 @@ bool vlearn_result(const vs_target_t *t, vs_learn_t *o)
     o->pitch_ratio = pr < 0.45f ? 0.45f : pr > 1.35f ? 1.35f : pr;
     o->formant_ratio = fr < 0.72f ? 0.72f : fr > 1.12f ? 1.12f : fr;
     /* pitch swing (quarter-semitone bins): monotone voices get livelier, swingy ones calmer */
-    o->swing = (hist_quantile(h_f0, F0_BINS, 0.9f) - hist_quantile(h_f0, F0_BINS, 0.1f)) / 4.0f;
+    /* only readings within 9 semitones of the middle: the quick tracker's occasional double /
+     * half-pitch readings would otherwise make a steady voice look swingy */
+    uint16_t trim[F0_BINS];
+    int mid = (int)b0;
+    for (int i = 0; i < F0_BINS; i++) trim[i] = (i >= mid - 36 && i <= mid + 36) ? h_f0[i] : 0;
+    o->swing = (hist_quantile(trim, F0_BINS, 0.9f) - hist_quantile(trim, F0_BINS, 0.1f)) / 4.0f;
     float rg = o->swing > 0.5f ? t->swing / o->swing : 1.8f;
     o->range = rg < 0.7f ? 0.7f : rg > 1.8f ? 1.8f : rg;
     return true;
